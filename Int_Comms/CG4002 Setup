@@ -1,0 +1,31 @@
+Follow the steps below to connect your Ubuntu machine to NUS Wireless Network:
+
+    Select System>Preferences>Network Connections
+    Click on the Wireless tab. Then click Add
+    Click on the Wireless tab. Then type SSID:
+    NUS for staff and visitors, and NUS_STU for students
+    Click on the Wireless Security tab. Fill in the following fields and click Apply.
+        Security : WPA & WPA2 Enterprise​​​
+        Authentication: Protected EAP (PEAP)
+        Anonymous Identity: Leave blank
+        Domain: auth01.nw.nus.edu.sg
+        CA certificate: None
+        PEAP version: Automatic
+        Inner authentication : MSCHAPv2
+        Username : Enter your “Domain\Username” where the domain is NUSSTF (staff) or NUSSTU (students) or NUSEXT (visitors)
+        E.g. nusstf\cceabd or nusstu\e0123456 or nusext\ccev1234
+        Password : (Enter your Password)
+    A pop-up “Connection Established with NUS SSID” will be shown on the top right-hand side of the screen.
+
+setup bluetooth on linux
+
+rfkill unblock bluetooth
+sudo service bluetooth restart
+bluetoothctl
+scan on
+discoverable on
+pairable on
+trust address(replaced with address of your beetle)
+connect address
+
+^^ manually restart bluetooth if does not work ^^
