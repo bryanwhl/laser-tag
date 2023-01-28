@@ -18,6 +18,23 @@ beetle_addresses = ["50:F1:4A:CC:01:C4",
                     "78:DB:2F:BF:2C:E2",
                     "1C:BA:8C:1D:30:22"]
 
+class MyDelegate(btle.DefaultDelegate):
+
+    def __init__(self,params):
+        btle.DefaultDelegate.__init__(self)
+
+    def handleNotification(self,cHandle,data):
+        global addr_var
+        global delegate_global
+        print('got data: ', data)
+        try:
+            data_decoded = struct.unpack("b",data)
+            print("Address: "+addr_var[ii])
+            print(data_decoded)
+            return
+        except:
+            pass
+
 def establish_connection(address):
     while True:
         try:

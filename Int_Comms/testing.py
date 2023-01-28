@@ -6,6 +6,35 @@ import concurrent
 from concurrent import futures
 import time
 
-dev = Peripheral("B0:B4:48:BF:C9:83") 
-dev.connect(dev.addr)
+
+class MyDelegate(btle.DefaultDelegate):
+
+    def __init__(self, params):
+        btle.DefaultDelegate.__init__(self)
+
+    def handleNotification(self,cHandle,data):
+        global addr_var
+        global delegate_global
+        print('got data: ', data)
+
+address = "B0:B1:13:2D:CD:A2"
+dev = Peripheral(address) 
 print("Rched here")
+dev.setDelegate(MyDelegate(address))
+
+
+
+
+characteristics = dev.getCharacteristics()
+for characteristic in dev.getCharacteristics():
+    characteristic.write(bytes('A', 'UTF-8'), withResponse=False)
+    
+
+while True:
+    if dev.waitForNotifications(1.0):
+        for characteristic in dev.getCharacteristics():
+            characteristic.write(bytes('A', 'UTF-8'), withResponse=False)
+    
+        continue
+    
+    print("Haha")
