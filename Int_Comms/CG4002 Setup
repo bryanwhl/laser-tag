@@ -17,6 +17,21 @@ Follow the steps below to connect your Ubuntu machine to NUS Wireless Network:
         Password : (Enter your Password)
     A pop-up “Connection Established with NUS SSID” will be shown on the top right-hand side of the screen.
 
+
+setup ble on bluno https://wiki.dfrobot.com/Bluno_SKU_DFR0267#target_6
+
+1. Open the Arduino IDE.
+2. Select the correct serial port in Menu->Tool->Serial port
+3. Open the Serial monitor (on the upper right of the IDE windows)
+4. Select the "No line ending"(①) and 115200 baud（②） in the two pull-down menu
+5. Type "+++"（③） like this and press send button（④）
+6. If the AT Command Mode is successfully Entered , you will receive "Enter AT Mode"（⑤） from it.
+7. Select the "Both NL & CR"(①) and 115200 baud（②） in the two pull-down menu
+8. Type or copy the AT command in the dialog（③） like this and press send button（④）
+9. "AT+MAC" Request MAC address for use in python code.
+10. ''' USE “AT+EXIT” to exit AT Mode '''
+
+
 setup bluetooth on linux
 
 rfkill unblock bluetooth
