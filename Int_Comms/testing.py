@@ -34,7 +34,5 @@ while True:
     if dev.waitForNotifications(1.0):
         for characteristic in dev.getCharacteristics():
             characteristic.write(bytes('A', 'UTF-8'), withResponse=False)
-    
+        print("ack sent")
         continue
-    
-    print("Haha")
