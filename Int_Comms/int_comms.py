@@ -1,6 +1,7 @@
 '''
 Links referenced:
 https://ianharvey.github.io/bluepy-doc/
+https://www.geeksforgeeks.org/python-output-formatting/
 '''
 
 import bluepy
@@ -10,63 +11,61 @@ import threading
 import concurrent
 from concurrent import futures
 import time
+import struct
+import crc8
+import asyncio
 
-dev = btle.Peripheral("B0:B4:48:BF:C9:83") 
-
-beetle_addresses = ["50:F1:4A:CC:01:C4", 
-                    "50:F1:4A:CB:FE:EE", 
-                    "78:DB:2F:BF:2C:E2",
-                    "1C:BA:8C:1D:30:22"]
+#manually input all address here
+address = "B0:B1:13:2D:CD:A2"
+beetle_addresses = ["B0:B1:13:2D:CD:A2"]
+beetle_status = [0]
+global beetle_handshake 
+beetle_handshake = [False]
 
 class MyDelegate(btle.DefaultDelegate):
 
-    def __init__(self,params):
+    def __init__(self, params):
         btle.DefaultDelegate.__init__(self)
 
+    #this is asynchronous
     def handleNotification(self,cHandle,data):
         global addr_var
         global delegate_global
-        print('got data: ', data)
-        try:
-            data_decoded = struct.unpack("b",data)
-            print("Address: "+addr_var[ii])
-            print(data_decoded)
-            return
-        except:
-            pass
+        #print("got data: ")
+        unpacked = struct.unpack('c c h h h h h h h h h', data)
+        #print("From: %1d \nSeq num: %1d\nType: %c" % (unpacked[2]/10, unpacked[2]%10, unpacked[0]) )
+        if unpacked[0] == 'V':
+            acknowledge(self)
+        elif unpacked[0] == 'A':
+            beetle_handshake[0] = True
+            acknowledge(self)
 
-def establish_connection(address):
+def establish_connection():
     while True:
         try:
-            for idx in range(len(beetle_addresses)):
+            for i in range(len(beetle_addresses)):
                 # for initial connections or when any beetle is disconnected
-                if beetle_addresses[idx] == address:
-                    if global_beetle[idx] != 0:  # do not reconnect if already connected
+                if beetle_addresses[i] == address:
+                    if beetle_status[i] != 0:  # do not reconnect if already connected
                         return
                     else:
                         print("connecting with %s" % (address))
                         # Peripheral is used to connect, .connect is used for reconnecting
                         beetle = Peripheral(address) 
-                        global_beetle[idx] = beetle
-                        """"
-                        beetle_delegate = Delegate(address)
-                        global_delegate_obj[idx] = beetle_delegate
-                        beetle.withDelegate(beetle_delegate)
-                        if address != "50:F1:4A:CC:01:C4":
-                            initHandshake(beetle)
-                        """
+                        beetle.setDelegate(MyDelegate(address))
+                        beetle_status[i] = beetle
                         print("Connected to %s" % (address))
+                        handshake(beetle, 0)
                         return
         except Exception as e:
             print(e)
-            for idx in range(len(beetle_addresses)):
+            for i in range(len(beetle_addresses)):
                 # for initial connections or when any beetle is disconnected
-                if beetle_addresses[idx] == address:
-                    if global_beetle[idx] != 0:  # do not reconnect if already connected
+                if beetle_addresses[i] == address:
+                    if beetle_status[i] != 0:  # do not reconnect if already connected
                         return
-            time.sleep(3)
-
-
+            time.sleep(3)    
+    
 def reconnect(beetle):
     while True:
         try:
@@ -78,18 +77,39 @@ def reconnect(beetle):
             time.sleep(1)
             continue
         
-        
+def acknowledge(beetle):
+    for characteristic in beetle.getCharacteristics():
+        characteristic.write(bytes('A', 'UTF-8'), withResponse=False)
+    print("ack sent")
+
+def handshake(beetle, id):
+    for characteristic in beetle.getCharacteristics():
+        characteristic.write(bytes('H', 'UTF-8'), withResponse=False)
+    print("handshake sent")
+    beetle.waitForNotifications(2)
+    if(beetle_handshake[id] == False):
+        handshake(beetle, id)
+
+#Fucntion to check CRC match data receive
+def crc_check(data_string):
+    hash = crc8.crc8()
+    crc = data_string[-2:]
+    data_string = data_string[2:-2]
+    hash.update(bytes(data_string, "utf-8"))
+    if (hash.hexdigest() == crc):
+        return True
+    else:
+        return False
+    
 if __name__ == '__main__':
-    global_beetle = []
-    [global_beetle.append(0) for idx in range(len(beetle_addresses))]
-    #for beetle in global_beetle:
-        #initHandshake(beetle)
-        
-        
-        
-        
-        
-        
+    establish_connection()
+    '''
+    while True:
+        for i in range(len(beetle_addresses)):
+            for characteristic in i.getCharacteristics():
+                characteristic.write(bytes('A', 'UTF-8'), withResponse=False)
+        asyncio.sleep(1)
+    '''
         
 '''
 Protocols:
@@ -113,5 +133,7 @@ use CRC
 packet fragmentation for large packet(only applicable for sensor)
 20byte for all packet. pad small packet and fragment big packet
 no timer for disconnection
+sent wakeup call every 5s to gun and vest
+timer for motion: reconnect if no data receive for a period of time
 
 '''
