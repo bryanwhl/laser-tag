@@ -68,7 +68,7 @@ void packet_overhead(char packet_id) {
   char crc[3];
   temp.toCharArray(crc, 3);
   int j = 0;
-  
+
   //heading for packet
   packet[0] = BEETLE_ID;
   packet[1] = packet_id;
@@ -78,7 +78,7 @@ void packet_overhead(char packet_id) {
     packet[i] = data[j];
     j = j + 1;
   }
-  
+
   // add crc to last 2 bit of packet
   if (strlen(crc) == 1) {
     packet[18] = '0';
@@ -133,7 +133,7 @@ void loop() {
   start = 4 ? 0 : start + 1;
   //*/
 
-  
+
   //if dont recieve ACK from laptop, send the next set
   if (millis() < time_out) {
     error = true;
@@ -175,53 +175,14 @@ void loop() {
         Serial.flush();
         memset(data, 0, 17);
     }
-    /*
-
-      //if dance start send 1 dataset in 3 packets. if issue with any 3, resend packet. if error more than 3 skip current data set.
-      if (dance_start && handshake_confirmed) {
-      //if one of the 3 packets have issue resend all 3 again.
-      if (error) {
-        if (error_num > 2) {
-          next_set = true;
-          error_num = 0;
-        } else {
-          //Send data set as part of resolving error
-          data_set[0] = convert_2dp(roll[err_set]);
-          data_set[1] = convert_2dp(pitch[err_set]);
-          data_set[2] = convert_2dp(yaw[err_set]);
-          data_set[3] = convert_2dp(AccX[err_set]);
-          data_set[4] = convert_2dp(AccY[err_set]);
-          data_set[5] = convert_2dp(AccZ[err_set]);
-          //Call function to send data_set
-          dance_data(data_set);
-          error_num++;
-        }
-        error = false;
-      }
-           data_started = true;
-           //Only send next set if ack or err received
-           if (next_set) {
-             //prepare all data in to single array
-             time_out = millis() + 1000;
-             err_set = current_set;
-             data_set[0] = convert_2dp(roll[current_set]);
-             data_set[1] = convert_2dp(pitch[current_set]);
-             data_set[2] = convert_2dp(yaw[current_set]);
-             data_set[3] = convert_2dp(AccX[current_set]);
-             data_set[4] = convert_2dp(AccY[current_set]);
-             data_set[5] = convert_2dp(AccZ[current_set]);
-             //Call function to send data_set
-             dance_data(data_set);
-             //loop dummy data
-             if (current_set != 4) {
-               current_set++;
-             } else {
-               current_set = 0;
-             }
-             next_set = false;
-           }
-
-      }//*/
   }
+
+  Serial.print("Hello HeHe");
+
+  /*
+  if(handshake && handshake_ack) {
+    send_data(data_set);
+  } //*/
+
   delay(100);
 }
