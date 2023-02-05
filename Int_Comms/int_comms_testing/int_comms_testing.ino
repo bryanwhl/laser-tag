@@ -2,34 +2,43 @@
 #define BEETLE_ID '0'
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
+#define GUN_ID '2'
+#define VEST_ID '3'
+#define MOTION_ID '4'
+#define WAKEUP_ID '5'
 
 char HANDSHAKE[] = "HANDSHAKE";
 char ACK[] = "ACK";
+char WAKEUP[] = "WAKEUP";
+char GUN[] = "GUN";
+char VEST[] = "VEST";
 
 
 //create variable to be used for packet and data processing
-char temp_msg[17];
-uint8_t data[17];
-uint8_t packet[21];
+uint8_t data[16];
+uint8_t packet[20];
+float data_set[6];
+
+//dummy to test
+int start = 0;
+float roll[] = {222.14, 222.30, 222.12, 221.88, 221.73};    //3byte
+float pitch[] = {273.05, 272.90, 272.91, 272.93, 272.95};   //3byte
+float yaw[] = {370.27, -370.24, -370.29, -370.37, -370.49}; //3byte
+float AccX[] = { -0.48, 0.47, 0.46, 0.46, 0.46};            //2byte
+float AccY[] = { -0.15, -0.13, -0.16, -0.20, -0.22};        //2byte
+float AccZ[] = {1, 2, 3, 4, 5};                             //2byte
+//1byte for signs of all 6 variable
 
 //boolean checks for logic program
 //check that data transfer has begin
-bool data_started = false;
-//This boolean would be check by the sensor
-bool dance_start = false;
 //check if receive error or handshake from laptop
 bool error = false;
 bool handshake = false;
-bool handshake_confirmed = false;
-bool next_set = true;
-byte temp;
-int current_set = 0;
-int err_set = -1;
-int error_num = 0;
+bool handshake_ack = false;
 String time;
 unsigned long time_out = 99999999;
 
-float data_set[8];
+
 
 void setup() {
   Serial.begin(115200);
@@ -59,13 +68,18 @@ void packet_overhead(char packet_id) {
   char crc[3];
   temp.toCharArray(crc, 3);
   int j = 0;
+  
+  //heading for packet
   packet[0] = BEETLE_ID;
   packet[1] = packet_id;
+
+  // insert data into body of packet
   for (int i = 2; i < 18; i = i + 1) {
     packet[i] = data[j];
     j = j + 1;
   }
-  // add crc to packet
+  
+  // add crc to last 2 bit of packet
   if (strlen(crc) == 1) {
     packet[18] = '0';
     packet[19] = crc[0];
@@ -75,45 +89,51 @@ void packet_overhead(char packet_id) {
   }
 }
 
-//function to send 1 dataset
-void dance_data(float data_set[]) {
-  String pac;
-  int set_no = 0;
-  int pid = 51; // 3 in ASCII
-  String front;
-  String back;
-  char pac_msg[17];
-  //loop 3 times due to 3 packets per data set
-  while (set_no < 6) {
-    front = String (data_set[set_no]);
-    back = String (data_set[set_no + 1]);
-    pac = front + "|" + back;
-    pac.toCharArray(temp_msg, 17);
-    data_padding(temp_msg);
-    packet_overhead(char(pid));
-    Serial.write((char*)packet);
-    Serial.flush();
-    memset(temp_msg, 0, 17);
-    memset(data, 0, 17);
-    memset(data_set, 0, sizeof(float));
-    set_no = set_no + 2;
-    pid++;
-    delay(20);
+//function to send 1 dataset of motion sensor values
+void send_data(float data_set[]) {
+  unsigned int x;
+  uint8_t xlow ;
+  uint8_t xhigh ;
+  uint8_t signs = 0;
+  //roll, pitch and yaw
+  for (int i = 0; i < 3; ++i) {
+    x = abs( (int)data_set[i] );
+    xlow = x & 0xff;
+    xhigh  = (x >> 8);
+    data[0 + i * 3] = xlow;
+    data[1 + i * 3] = xhigh;
+    data[2 + i * 3] = abs((int)(data_set[i] * 100) % 100);
+    if (data_set[i] < 0) {
+      signs + 1;
+    }
+    signs *= 2;
   }
-  //last packet to be send as timestamp
-  time = String(millis());
-  time.toCharArray(temp_msg, 17);
-  data_padding(temp_msg);
-  packet_overhead('6');
+  //x, y, z
+  for (int i = 0; i < 3; ++i) {
+    data[9 + i * 2] = abs( (int)data_set[i + 3] );
+    data[10 + i * 2] = abs((int)(data_set[i + 3] * 100) % 100) ;
+  }
+
+  packet_overhead(MOTION_ID);
   Serial.write((char*)packet);
   Serial.flush();
-  memset(temp_msg, 0, 17);
   memset(data, 0, 17);
   delay(20);
 }
 
 
 void loop() {
+  //* This is for dummy data
+  data_set[0] = roll[start];
+  data_set[1] = pitch[start];
+  data_set[2] = yaw[start];
+  data_set[3] = AccX[start];
+  data_set[4] = AccY[start];
+  data_set[5] = AccZ[start];
+  start = 4 ? 0 : start + 1;
+  //*/
+
+  
   //if dont recieve ACK from laptop, send the next set
   if (millis() < time_out) {
     error = true;
@@ -128,17 +148,9 @@ void loop() {
         Serial.flush();
         memset(data, 0, 17);
 
-        if (data_started) {
-          next_set = true;
-          error = false;
-          err_set = -1;
-          error_num = 0;
-        }
         if (handshake) {
           error = false;
-          dance_start = true;
-          handshake = false;
-          handshake_confirmed = true;
+          handshake_ack = true;
         }
         break;
       case 'H'://Received Handshake request
@@ -149,19 +161,19 @@ void loop() {
         memset(data, 0, 17);
 
         //Reset all boolean to default
-        data_started = false;
-        dance_start = false;
         error = false;
         handshake = true;
-        handshake_confirmed = false;
-        next_set = true;
-        current_set = 0;
-        err_set = -1;
-        error_num = 0;
+        handshake_ack = false;
         break;
       case 'N': // Receive Nack
         error = true;
         break;
+      case 'W' ://Received Wakeup Call
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet);
+        Serial.flush();
+        memset(data, 0, 17);
     }
     /*
 
@@ -211,4 +223,5 @@ void loop() {
 
       }//*/
   }
+  delay(100);
 }

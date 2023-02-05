@@ -4,17 +4,17 @@ from threading import Thread
 import crc8
 from bluepy import btle
 from bluepy.btle import BTLEException, Peripheral
+from datetime import datetime
 
 service_uuid = "0000dfb0-0000-1000-8000-00805f9b34fb"
 
 connection_threads = {}
-connected_addr=[]
-main_data={} 
-
 address = "B0:B1:13:2D:CD:A2"
 beetle_addresses = ["B0:B1:13:2D:CD:A2"]
 beetle_status = {}
 
+
+#https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
     def __init__(self, connection_index):
         btle.DefaultDelegate.__init__(self)
@@ -27,15 +27,20 @@ class MyDelegate(btle.DefaultDelegate):
         if crc_check(data_string):
             BEETLE_ID = data_string[0]
             PACKET_ID = data_string[1]
-            DATA = rm_symbol(data_string[2:-2])
+            DATA = clear_padding(data_string[2:-2])
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '0') and (DATA == "ACK")):
                 connection_threads[self.connection_index].ACK=True
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '1') and (DATA == "HANDSHAKE")): 
                 connection_threads[self.connection_index].handshake=True
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '2') and (DATA == "GUN")): 
-                connection_threads[self.connection_index].handshake=True
+                print("Player has fired a shot")
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '3') and (DATA == "VEST")): 
-                connection_threads[self.connection_index].handshake=True
+                print("Player has been hit")
+            if ((BEETLE_ID == self.ID) and (PACKET_ID == '4')): 
+                print("motion sensor data obtained")
+            if ((BEETLE_ID == self.ID) and (PACKET_ID == '5') and (DATA == "WAKEUP")): 
+                connection_threads[self.connection_index].ACK=True
+            '''
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '3')):
                 text = DATA.split("|")
                 connection_threads[self.connection_index].current_data["roll"]=text[0]
@@ -48,19 +53,43 @@ class MyDelegate(btle.DefaultDelegate):
                 text = DATA.split("|")
                 connection_threads[self.connection_index].current_data["AccY"]=text[0]
                 connection_threads[self.connection_index].current_data["AccZ"]=text[1]
+            '''
         else:
             print("ERR in CRC")
             time.sleep(0.01)
 
 
-#Thread generation for each beetle
-class ConnectionHandlerThread(Thread):
-    recent_time = time.time()
+#data processing for incoming packets
+def clean_data(info):
+    return(info[2:-1])
+
+#remove padded '#' from message
+def clear_padding(data):
+    while True:
+        if (data[0] == '#'):
+            data = data[1:]
+        else:
+            return data
+        
+#CRC check https://pypi.org/project/crc8/
+def crc_check(data_string):
+    hash = crc8.crc8()
+    crc = data_string[-2:]
+    data_string = data_string[2:-2]
+    hash.update(bytes(data_string, "utf-8"))
+    if (hash.hexdigest() == crc):
+        return True
+    else:
+        return False
+
+# Thread generation for each beetle
+# to use for timeout to trigger sending of wakeup call https://pynative.com/python-get-time-difference/
+class BeetleThread(Thread):
+    last_sync_time = datetime.now().strftime("%H:%M:%S")
     handshake = False
     ACK = False
     clear =False
     sync =False
-    last_sync_time=0
     millis=0
     err_count=0
     current_data={
@@ -85,9 +114,19 @@ class ConnectionHandlerThread(Thread):
         self.global_counter = 0
         
     def run(self):
+        
         #handshake at start of thread
-        self.handshake_proto(self.connection)
+        self.handshake(self.connection)
+        
         while True:
+            
+                    # convert time string to datetime
+            t1 = datetime.strptime(self.last_sync_time, "%H:%M:%S")
+            t2 = datetime.strptime(datetime.now().strftime("%H:%M:%S"), "%H:%M:%S")
+            delta = t2 - t1
+            if(delta.total_seconds() > 60):
+                self.wakeup(self.connection)
+            
             if (self.reconnect):
                 time.sleep(1)
                 print("reconnect")
@@ -95,17 +134,17 @@ class ConnectionHandlerThread(Thread):
             try:
                 if (self.connection_index==0):
                     #call data collecting comms
-                    self.data_proto(self.connection)
+                    self.receive_data(self.connection)
                 else:
                     #call position collectiog comms
                     self.pos_proto(self.connection)
             except BTLEException:
-                #will only enter if problem with connection. IE disconnect
+                # enter when disconnected
                 self.connection.disconnect()
-                #start a function to create new thread
+                #start a function to create new thread after reconnecting
                 reconnect = Thread(target=reconnection(self.addr,self.connection_index))
                 reconnect.start()
-                #Current Thread END
+                #end current thread as new one will be started after reconnection
                 sys.exit(1)
 
     def clear_proto(self,p):
@@ -115,9 +154,9 @@ class ConnectionHandlerThread(Thread):
             p.waitForNotifications(0.01)
         self.handshake=False
 
-    def handshake_proto(self,p):
+    def handshake(self,p):
         # Send handshake packet
-        print("HANDSHAKE INITIATED")
+        print("HANDSHAKE SENT")
         self.characteristic.write(bytes("H", "utf-8"), withResponse=False)
         # Wait for Handshake packet from bluno 
         while (not self.handshake):
@@ -130,12 +169,17 @@ class ConnectionHandlerThread(Thread):
             self.characteristic.write(bytes("A", "utf-8"), withResponse=False)
             p.waitForNotifications(2)
         self.ACK=False
-
-    def pos_proto(self,p):
-        while True:
-            p.waitForNotifications(1)
+        
+    def wakeup(self, p):
+        # Send handshake packet
+        print("WAKE UP CALL")
+        self.characteristic.write(bytes("W", "utf-8"), withResponse=False)
+        # Wait for ack packet from bluno 
+        while (not self.ACK):
+            p.waitForNotifications(2)
+        self.ACK=False
             
-    def data_proto(self,p):
+    def receive_data(self,p):
         error = False
         # recieve info for current data set
         while True:
@@ -171,7 +215,7 @@ def establish_connection():
         beetle_status[i]=p
         print(i)
         print(beetle_status[i])
-        t = ConnectionHandlerThread(i, beetle_addresses[i], False)
+        t = BeetleThread(i, beetle_addresses[i], False)
         #start thread
         t.start()
         connection_threads[i]=t
@@ -184,7 +228,7 @@ def reconnection(addr,index):
                 p = btle.Peripheral(addr)
                 print("re-connected to %s" % (addr))
                 beetle_status[index]=p
-                t = ConnectionHandlerThread(index, addr, True)
+                t = BeetleThread(index, addr, True)
                 #start thread
                 t.start()
                 connection_threads[index]=t
@@ -192,29 +236,6 @@ def reconnection(addr,index):
             except Exception:
                 time.sleep(1)
                 continue
-
-#data processing for incoming packets
-def clean_data(info):
-    return(info[2:-1])
-
-#data processing for incoming packets
-def rm_symbol(data):
-    while True:
-        if (data[0] == '#'):
-            data = data[1:]
-        else:
-            return data
-
-#Fucntion to check CRC match data receive
-def crc_check(data_string):
-    hash = crc8.crc8()
-    crc = data_string[-2:]
-    data_string = data_string[2:-2]
-    hash.update(bytes(data_string, "utf-8"))
-    if (hash.hexdigest() == crc):
-        return True
-    else:
-        return False
 
 def main():
     establish_connection()
