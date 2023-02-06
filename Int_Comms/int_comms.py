@@ -45,18 +45,17 @@ def establish_connection():
         try:
             for i in range(len(beetle_addresses)):
                 # for initial connections or when any beetle is disconnected
-                if beetle_addresses[i] == address:
-                    if beetle_status[i] != 0:  # do not reconnect if already connected
-                        return
-                    else:
-                        print("connecting with %s" % (address))
-                        # Peripheral is used to connect, .connect is used for reconnecting
-                        beetle = Peripheral(address) 
-                        beetle.setDelegate(MyDelegate(address))
-                        beetle_status[i] = beetle
-                        print("Connected to %s" % (address))
-                        handshake(beetle, 0)
-                        return
+                if beetle_status[i] != 0:  # do not reconnect if already connected
+                    return
+                else:
+                    print("connecting with %s" % (address))
+                    # Peripheral is used to connect, .connect is used for reconnecting
+                    beetle = Peripheral(address)
+                    beetle.setDelegate(MyDelegate(address))
+                    beetle_status[i] = beetle
+                    print("Connected to %s" % (address))
+                    handshake(beetle, 0)
+                    return
         except Exception as e:
             print(e)
             for i in range(len(beetle_addresses)):
@@ -124,7 +123,7 @@ laptop send ack if packet received is correct, nack if packet is corrupted
 
 motion sensor:
 UDP (standardised data rate)
-Just keep sending from arduino periodically
+Just keep sending from arduino periodically at ard every 200ms(??)
 PC will drop corrupted packet 
 No action if packet lost
 
