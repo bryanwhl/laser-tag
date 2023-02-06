@@ -2,10 +2,13 @@
 #define BEETLE_ID '0'
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
-#define GUN_ID '2'
-#define VEST_ID '3'
-#define MOTION_ID '4'
-#define WAKEUP_ID '5'
+#define WAKEUP_ID '2'
+#define GUN_ID '3'
+#define VEST_ID '4'
+#define MOTION_ID '5'
+#define MOTION_ID_P1 '5'
+#define MOTION_ID_P2 '6'
+
 
 char HANDSHAKE[] = "HANDSHAKE";
 char ACK[] = "ACK";
@@ -38,13 +41,40 @@ bool handshake_ack = false;
 String time;
 unsigned long time_out = 99999999;
 
-
-
 void setup() {
   Serial.begin(115200);
+  error = false;
+  handshake = false;
+  handshake_ack = true;
   while (!Serial) {
   }
   delay(1000);
+}
+
+int countDigits(long num) {
+  uint8_t count = 0;
+  while (num)
+  {
+    num = num / 10;
+    count++;
+  }
+  return count;
+}
+
+void insert_digit(char temp_data[16], int &index, long value) {
+  int num_digit;
+  char holder[6];
+  String temp;
+
+  temp = String(abs(value));
+  temp.toCharArray(holder, 6);
+  num_digit = countDigits(abs(value));
+  for (int i = 0; i < 5 - num_digit; ++i) {
+    temp_data[index++] = '0';
+  }
+  for (int i = 0; i < num_digit; ++i) {
+    temp_data[index++] = holder[i];
+  }
 }
 
 //Add # to pad string to 16 char.
@@ -79,6 +109,9 @@ void packet_overhead(char packet_id) {
     j = j + 1;
   }
 
+  //packet[19] = crc_8(data, 16);
+
+  //*
   // add crc to last 2 bit of packet
   if (strlen(crc) == 1) {
     packet[18] = '0';
@@ -86,11 +119,11 @@ void packet_overhead(char packet_id) {
   } else {
     packet[18] = crc[0];
     packet[19] = crc[1];
-  }
+  }//*/
 }
 
-//function to send 1 dataset of motion sensor values
-void send_data(float data_set[]) {
+//function to send 1 dataset of motion sensor values byte version
+void send_data_bytes(float data_set[]) {
   unsigned int x;
   uint8_t xlow ;
   uint8_t xhigh ;
@@ -115,22 +148,89 @@ void send_data(float data_set[]) {
   }
 
   packet_overhead(MOTION_ID);
+  Serial.write((uint8_t *)(packet), sizeof(packet));
+  Serial.flush();
+  memset(data, 0, 16);
+  delay(50);
+}
+
+//function to send 1 dataset of motion sensor values string version
+void send_data_string(float data_set[]) {
+  int signs;
+  long roll  =  (long)(data_set[0] * 100) % 100000;
+  long pitch =  (long)(data_set[1] * 100) % 100000;
+  long yaw   =  (long)(data_set[2] * 100) % 100000;
+  long accX  =  (long)(data_set[3] * 100) % 100000;
+  long accY  =  (long)(data_set[4] * 100) % 100000;
+  long accZ  =  (long)(data_set[5] * 100) % 100000;
+  Serial.println(roll);
+  Serial.println(pitch);
+  Serial.println(yaw);
+  Serial.println(accX);
+  Serial.println(accY);
+  Serial.println(accZ);
+  int index;
+  char sign[2];
+  char temp_data[16];
+
+  //packet 0
+  signs = 0;
+  index = 1;
+  for (int i = 0; i < 3; ++i) {
+    if (data_set[i] < 0) {
+      signs += 1;
+    }
+    signs *= 2;
+  }
+  String(signs).toCharArray(sign, 2);
+  temp_data[0] = sign[0];
+
+  insert_digit(temp_data, index, roll);
+  insert_digit(temp_data, index, pitch);
+  insert_digit(temp_data, index, yaw);
+
+  data_padding(temp_data);
+  packet_overhead(MOTION_ID_P1);
+  Serial.write((char*)packet);
+  memset(data, 0, 16);
+  delay(100);
+  Serial.println();
+
+  //packet 1
+  signs = 0;
+  index = 1;
+  for (int i = 0; i < 3; ++i) {
+    signs *= 2;
+    if (data_set[i + 3] < 0) {
+      signs += 1;
+    }
+  }
+  String(signs).toCharArray(sign, 2);
+  temp_data[0] = sign[0];
+
+  insert_digit(temp_data, index, accX);
+  insert_digit(temp_data, index, accY);
+  insert_digit(temp_data, index, accZ);
+
+  data_padding(temp_data);
+  packet_overhead(MOTION_ID_P2);
   Serial.write((char*)packet);
   Serial.flush();
-  memset(data, 0, 17);
-  delay(20);
+  memset(data, 0, 16);
+  delay(100);
 }
 
 
 void loop() {
   //* This is for dummy data
+  start = 0;
+  memset(data_set, 0, 6);
   data_set[0] = roll[start];
   data_set[1] = pitch[start];
   data_set[2] = yaw[start];
   data_set[3] = AccX[start];
   data_set[4] = AccY[start];
   data_set[5] = AccZ[start];
-  start = 4 ? 0 : start + 1;
   //*/
 
 
@@ -142,11 +242,13 @@ void loop() {
     byte cmd = Serial.read();
     switch (cmd) {
       case 'A': //Received ACK
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet);
-        Serial.flush();
-        memset(data, 0, 17);
+        /*
+          data_padding(ACK);
+          packet_overhead(ACK_ID);
+          Serial.write((char*)packet);
+          Serial.flush();
+          memset(data, 0, 16);
+          //*/
 
         if (handshake) {
           error = false;
@@ -158,7 +260,7 @@ void loop() {
         packet_overhead(HANDSHAKE_ID);
         Serial.write((char*)packet);
         Serial.flush();
-        memset(data, 0, 17);
+        memset(data, 0, 16);
 
         //Reset all boolean to default
         error = false;
@@ -173,16 +275,15 @@ void loop() {
         packet_overhead(ACK_ID);
         Serial.write((char*)packet);
         Serial.flush();
-        memset(data, 0, 17);
+        memset(data, 0, 16);
     }
   }
 
-  Serial.print("Hello HeHe");
-
-  /*
-  if(handshake && handshake_ack) {
-    send_data(data_set);
-  } //*/
-
   delay(100);
+
+  if (handshake_ack) {
+    //send_data_bytes(data_set);
+    send_data_string(data_set);
+    handshake_ack = false;
+  }
 }
