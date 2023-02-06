@@ -44,10 +44,14 @@ class MyDelegate(btle.DefaultDelegate):
                 print("Player has been hit")
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '5')):
                 print("Motion sensor data packet 1 obtained")
+                extracted_data = unpack_data(DATA)
+                print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                 connection_threads[self.connection_index].packet_0 = True
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '6')):
-                connection_threads[self.connection_index].packet_1 = True
                 print("Motion sensor data packet 2 obtained")
+                extracted_data = unpack_data(DATA)
+                print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
+                connection_threads[self.connection_index].packet_1 = True
         else:
             print("ERR in CRC")
             time.sleep(0.01)
@@ -67,6 +71,21 @@ def clear_padding(data):
             data = data[1:]
         else:
             return data
+
+
+def unpack_data(data):
+    signs = data[0] - '0'
+    value_1 = int(data[1:6]) / 100
+    value_2 = int(data[6:11]) / 100
+    value_3 = int(data[11:16]) / 100
+    if (signs % 2 == 1):
+        value_3 = -value_3
+    if ((signs/2) % 2 == 1):
+        value_2 = -value_2
+    if ((signs/4) % 2 == 1):
+        value_1 = -value_1
+    return {value_1, value_2, value_3}
+
 
 # CRC check https://pypi.org/project/crc8/
 
@@ -128,19 +147,19 @@ class BeetleThread(Thread):
                 if (time_diff.total_seconds() > 60):
                     self.wakeup(self.connection)
                     self.last_sync_time = datetime.now()
-                    
+
                 # call data collecting comms
                 self.receive_data(self.connection)
-                
+
         except BTLEException:
-                # enter when disconnected
-                self.connection.disconnect()
-                # start a function to create new thread after reconnecting
-                reconnect = Thread(target=reconnection(
-                    self.addr, self.connection_index))
-                reconnect.start()
-                # end current thread as new one will be started after reconnection
-                sys.exit(1)
+            # enter when disconnected
+            self.connection.disconnect()
+            # start a function to create new thread after reconnecting
+            reconnect = Thread(target=reconnection(
+                self.addr, self.connection_index))
+            reconnect.start()
+            # end current thread as new one will be started after reconnection
+            sys.exit(1)
 
     def handshake(self, p):
         # Send handshake packet
