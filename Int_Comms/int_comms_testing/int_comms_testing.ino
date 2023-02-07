@@ -45,7 +45,7 @@ void setup() {
   Serial.begin(115200);
   error = false;
   handshake = false;
-  handshake_ack = true;
+  handshake_ack = false;
   while (!Serial) {
   }
   delay(1000);
@@ -149,7 +149,6 @@ void send_data_bytes(float data_set[]) {
 
   packet_overhead(MOTION_ID);
   Serial.write((uint8_t *)(packet), sizeof(packet));
-  Serial.flush();
   memset(data, 0, 16);
   delay(50);
 }
@@ -163,12 +162,6 @@ void send_data_string(float data_set[]) {
   long accX  =  (long)(data_set[3] * 100) % 100000;
   long accY  =  (long)(data_set[4] * 100) % 100000;
   long accZ  =  (long)(data_set[5] * 100) % 100000;
-  Serial.println(roll);
-  Serial.println(pitch);
-  Serial.println(yaw);
-  Serial.println(accX);
-  Serial.println(accY);
-  Serial.println(accZ);
   int index;
   char sign[2];
   char temp_data[16];
@@ -194,7 +187,6 @@ void send_data_string(float data_set[]) {
   Serial.write((char*)packet);
   memset(data, 0, 16);
   delay(100);
-  Serial.println();
 
   //packet 1
   signs = 0;
@@ -215,7 +207,6 @@ void send_data_string(float data_set[]) {
   data_padding(temp_data);
   packet_overhead(MOTION_ID_P2);
   Serial.write((char*)packet);
-  Serial.flush();
   memset(data, 0, 16);
   delay(100);
 }
@@ -242,14 +233,6 @@ void loop() {
     byte cmd = Serial.read();
     switch (cmd) {
       case 'A': //Received ACK
-        /*
-          data_padding(ACK);
-          packet_overhead(ACK_ID);
-          Serial.write((char*)packet);
-          Serial.flush();
-          memset(data, 0, 16);
-          //*/
-
         if (handshake) {
           error = false;
           handshake_ack = true;
@@ -259,7 +242,6 @@ void loop() {
         data_padding(HANDSHAKE);
         packet_overhead(HANDSHAKE_ID);
         Serial.write((char*)packet);
-        Serial.flush();
         memset(data, 0, 16);
 
         //Reset all boolean to default
@@ -274,7 +256,6 @@ void loop() {
         data_padding(ACK);
         packet_overhead(ACK_ID);
         Serial.write((char*)packet);
-        Serial.flush();
         memset(data, 0, 16);
     }
   }
@@ -282,8 +263,8 @@ void loop() {
   delay(100);
 
   if (handshake_ack) {
-    //send_data_bytes(data_set);
     send_data_string(data_set);
     handshake_ack = false;
+    handshake = false;
   }
 }
