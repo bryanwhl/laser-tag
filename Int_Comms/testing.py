@@ -13,7 +13,6 @@ address = "B0:B1:13:2D:CD:A2"
 beetle_addresses = ["B0:B1:13:2D:CD:A2"]
 beetle_status = {}
 
-
 # https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
     def __init__(self, connection_index):
@@ -29,6 +28,9 @@ class MyDelegate(btle.DefaultDelegate):
             PACKET_ID = data_string[1]
             DATA = clear_padding(data_string[2:-2])
             print("data received from ", BEETLE_ID)
+            connection_threads[self.connection_index].last_sync_time = datetime.now()
+            connection_threads[self.connection_index].total_data_received += utf8len(data)
+            connection_threads[self.connection_index].data_rate()
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '0') and (DATA == "ACK")):
                 print("ACK received")
                 connection_threads[self.connection_index].ACK = True
@@ -47,13 +49,23 @@ class MyDelegate(btle.DefaultDelegate):
                 extracted_data = unpack_data(DATA)
                 print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                 connection_threads[self.connection_index].packet_0 = True
+                connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
+                connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
+                connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
             if ((BEETLE_ID == self.ID) and (PACKET_ID == '6')):
                 print("Motion sensor data packet 2 obtained")
                 extracted_data = unpack_data(DATA)
                 print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                 connection_threads[self.connection_index].packet_1 = True
+                connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
+                connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
+                connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2]             
         else:
             print("ERR in CRC")
+            #reset all boolean when error in packet
+            connection_threads[self.connection_index].error = True
+            connection_threads[self.connection_index].packet_0 = False
+            connection_threads[self.connection_index].packet_1 = False
             time.sleep(0.01)
 
 # data processing for incoming packets
@@ -72,9 +84,9 @@ def clear_padding(data):
         else:
             return data
 
-
+# obtain imu value from string
 def unpack_data(data):
-    signs = data[0] - '0'
+    signs   = int(data[0])
     value_1 = int(data[1:6]) / 100
     value_2 = int(data[6:11]) / 100
     value_3 = int(data[11:16]) / 100
@@ -84,8 +96,11 @@ def unpack_data(data):
         value_2 = -value_2
     if ((signs/4) % 2 == 1):
         value_1 = -value_1
-    return {value_1, value_2, value_3}
+    return value_1, value_2, value_3
 
+# return size of packet received
+def utf8len(s):
+    return len(s.encode('utf-8'))
 
 # CRC check https://pypi.org/project/crc8/
 
@@ -102,27 +117,26 @@ def crc_check(data_string):
 
 # Thread generation for each beetle
 # To use for timeout to trigger sending of wakeup call https://pynative.com/python-get-time-difference/
+# https://www.w3schools.com/python/python_dictionaries.asp
 
 
 class BeetleThread(Thread):
-    last_sync_time = datetime.now()
-    current_time = datetime.now()
+    start_time = datetime.now()
+    last_sync_time = start_time
+    current_time = start_time
     handshake_status = False
     ACK = False
-    clear = False
-    sync = False
-    millis = 0
     err_count = 0
-    timer_count = 0
     packet_0 = False
     packet_1 = False
+    total_data_received = 0
     current_data = {
         "roll": "#",
         "pitch": "#",
         "yaw": "#",
-        "AccX": "#",
-        "AccY": "#",
-        "AccZ": "#",
+        "accX": "#",
+        "accY": "#",
+        "accZ": "#",
     }
 
     def __init__(self, connection_index, addr, reconnect):
@@ -169,7 +183,6 @@ class BeetleThread(Thread):
         while (not self.handshake_status):
             p.waitForNotifications(2)
             time.sleep(0.1)
-        self.handshake = False
         # Send back ACK
         print("HANDSHAKE RECIEVED, RETURN ACK")
         while (not self.ACK):
@@ -186,33 +199,23 @@ class BeetleThread(Thread):
         while (not self.ACK):
             p.waitForNotifications(2)
         self.ACK = False
-        self.timer_count = 0
 
     def receive_data(self, p):
-        error = False
-        # recieve info for current data set
-        while True:
-            self.current_data = {
-                "roll": "#",
-                "pitch": "#",
-                "yaw": "#",
-                "AccX": "#",
-                "AccY": "#",
-                "AccZ": "#",
-            }
-            # some loops to ensure all packets supposed to be recieved
-            for x in range(6):
-                p.waitForNotifications(0.1)
-                # print(self.current_data)
-                if (self.current_data["millis"] != '#'):
-                    break
-            if error:
-                if (self.err_count > 8):
-                    raise BTLEException("error")
-                self.err_count = self.err_count+1
-                error = False
-                continue
-            self.err_count = 0
+        # some loops to ensure all packets are received
+        for x in range(4):
+            p.waitForNotifications(0.1)
+        if error:
+            if (self.err_count > 8):
+                raise BTLEException("continous error in packet from ", self.connection_index)
+            self.err_count = self.err_count+1
+            error = False
+        if self.packet_0 & self.packet_1:
+            print("Full motion sensor data received")
+            print(self.current_data)
+            
+    def data_rate(self):
+        print("Data rate:", self.total_data_received / (datetime.now() - self.start_time()).total_seconds() )
+        
 
 
 def establish_connection():
@@ -229,10 +232,10 @@ def establish_connection():
                 connection_threads[i] = t
         except BTLEException:
             for i in range(len(beetle_addresses)):
-                # for initial connections or when any beetle is disconnected
-                if beetle_addresses[i] == address:
-                    if beetle_status[i] != 0:  # do not reconnect if already connected
-                        return
+                if len(beetle_status) == 0:
+                    return
+                if beetle_status[i] != 0:  # do not reconnect if already connected
+                    return
             time.sleep(3)
 
 
