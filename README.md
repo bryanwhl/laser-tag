@@ -11,3 +11,6 @@ Leave blank and press `Enter`
 
 "xilinx@192.168.95.247's password:"
 Password: `xilinx`
+
+Tunnel Details:
+Localhost:8888 --> pynq:8080
