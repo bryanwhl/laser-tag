@@ -18,15 +18,18 @@ clientSocket.connect((HOST, PORT))
 
 # Send message to server every 0.1 second
 try:
+    i = 0
     while True:
-        data = "this is the data"
-        data_bytes = data.encode()
+        input()
+        message = str(i)
+        encodedMessage = message.encode()
         # Encrypt data
         cipher = AES.new(key, AES.MODE_CBC)
-        encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
-        encrypted_data_b64 = b64encode(encrypted_data)
-        clientSocket.send(encrypted_data_b64)
-        time.sleep(0.1)
+        encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
+        encryptedMessage_64 = b64encode(encryptedMessage)
+        clientSocket.send(encryptedMessage_64)
+        i+=1
+
 except KeyboardInterrupt:
     print("Closing Client Socket")
     clientSocket.close()    
