@@ -1,40 +1,86 @@
 #include <CRCx.h>
-#define BEETLE_ID '0'
+#define BEETLE_ID '0' // change based on beetle
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
+#define WAKEUP_ID '2'
+#define GUN_ID '3'
+#define VEST_ID '4'
+#define MOTION_ID '5'
+#define MOTION_ID_P1 '5'
+#define MOTION_ID_P2 '6'
+// uncomment the system that bluno will be used in
+//#define isGUN
+#define isVEST
+//#define isMOTION
+
 
 char HANDSHAKE[] = "HANDSHAKE";
 char ACK[] = "ACK";
+char WAKEUP[] = "WAKEUP";
+char GUN[] = "GUN";
+char VEST[] = "VEST";
 
 
 //create variable to be used for packet and data processing
-char temp_msg[17];
-uint8_t data[17];
-uint8_t packet[21];
+uint8_t data[16];
+uint8_t packet[20];
+float data_set[6];
+
+//dummy to test
+int start = 0;
+float roll[] = {222.14, 222.30, 222.12, 221.88, 221.73};    //3byte
+float pitch[] = {273.05, 272.90, 272.91, 272.93, 272.95};   //3byte
+float yaw[] = {370.27, -370.24, -370.29, -370.37, -370.49}; //3byte
+float AccX[] = { -0.48, 0.47, 0.46, 0.46, 0.46};            //2byte
+float AccY[] = { -0.15, -0.13, -0.16, -0.20, -0.22};        //2byte
+float AccZ[] = {1, 2, 3, 4, 5};                             //2byte
+//1byte for signs of all 6 variable
+
 //boolean checks for logic program
 //check that data transfer has begin
-bool data_started = false;
-//This boolean would be check by the sensor
-bool dance_start = false;
 //check if receive error or handshake from laptop
 bool error = false;
 bool handshake = false;
-bool handshake_confirmed = false;
-bool next_set = true;
-byte temp;
-int current_set = 0;
-int err_set = -1;
-int error_num = 0;
+bool handshake_ack = false;
+bool data_ack = false;
 String time;
 unsigned long time_out = 99999999;
-
-float data_set[8];
+volatile int activation_count = 3;
 
 void setup() {
   Serial.begin(115200);
+  error = false;
+  handshake = false;
+  handshake_ack = false;
   while (!Serial) {
   }
   delay(1000);
+}
+
+int countDigits(long num) {
+  uint8_t count = 0;
+  while (num)
+  {
+    num = num / 10;
+    count++;
+  }
+  return count;
+}
+
+void insert_digit(char temp_data[16], int &index, long value) {
+  int num_digit;
+  char holder[6];
+  String temp;
+
+  temp = String(abs(value));
+  temp.toCharArray(holder, 6);
+  num_digit = countDigits(abs(value));
+  for (int i = 0; i < 5 - num_digit; ++i) {
+    temp_data[index++] = '0';
+  }
+  for (int i = 0; i < num_digit; ++i) {
+    temp_data[index++] = holder[i];
+  }
 }
 
 //Add # to pad string to 16 char.
@@ -51,7 +97,6 @@ void data_padding(char msg[]) {
   }
 }
 
-
 //Attach packet_id, packet_no and crc to data
 void packet_overhead(char packet_id) {
   uint8_t result8 = crcx::crc8(data, 16);
@@ -59,61 +104,133 @@ void packet_overhead(char packet_id) {
   char crc[3];
   temp.toCharArray(crc, 3);
   int j = 0;
-  packet[0] = beetle_id;
+
+  //heading for packet
+  packet[0] = BEETLE_ID;
   packet[1] = packet_id;
+
+  // insert data into body of packet
   for (int i = 2; i < 18; i = i + 1) {
     packet[i] = data[j];
     j = j + 1;
   }
-  // add crc to packet
+
+  //packet[19] = crc_8(data, 16);
+
+  //*
+  // add crc to last 2 bit of packet
   if (strlen(crc) == 1) {
     packet[18] = '0';
     packet[19] = crc[0];
   } else {
     packet[18] = crc[0];
     packet[19] = crc[1];
-  }
+  }//*/
 }
 
-//function to send 1 dataset
-void dance_data(float data_set[]) {
-  String pac;
-  int set_no = 0;
-  int pid = 51; // 3 in ASCII
-  String front;
-  String back;
-  char pac_msg[17];
-  //loop 3 times due to 3 packets per data set
-  while (set_no < 6) {
-    front = String (data_set[set_no]);
-    back = String (data_set[set_no + 1]);
-    pac = front + "|" + back;
-    pac.toCharArray(temp_msg, 17);
-    data_prepare(temp_msg);
-    packet_prepare(char(pid));
-    Serial.write((char*)packet);
-    Serial.flush();
-    memset(temp_msg, 0, 17);
-    memset(data, 0, 17);
-    memset(data_set, 0, sizeof(float));
-    set_no = set_no + 2;
-    pid++;
-    delay(20);
+//function to send 1 dataset of motion sensor values byte version
+void send_data_bytes(float data_set[]) {
+  unsigned int x;
+  uint8_t xlow ;
+  uint8_t xhigh ;
+  uint8_t signs = 0;
+  //roll, pitch and yaw
+  for (int i = 0; i < 3; ++i) {
+    x = abs( (int)data_set[i] );
+    xlow = x & 0xff;
+    xhigh  = (x >> 8);
+    data[0 + i * 3] = xlow;
+    data[1 + i * 3] = xhigh;
+    data[2 + i * 3] = abs((int)(data_set[i] * 100) % 100);
+    if (data_set[i] < 0) {
+      signs + 1;
+    }
+    signs *= 2;
   }
-  //last packet to be send as timestamp
-  time = String(millis());
-  time.toCharArray(temp_msg, 17);
-  data_prepare(temp_msg);
-  packet_prepare('6');
+  //x, y, z
+  for (int i = 0; i < 3; ++i) {
+    data[9 + i * 2] = abs( (int)data_set[i + 3] );
+    data[10 + i * 2] = abs((int)(data_set[i + 3] * 100) % 100) ;
+  }
+
+  packet_overhead(MOTION_ID);
+  Serial.write((uint8_t *)(packet), sizeof(packet));
+  memset(data, 0, 16);
+  delay(50);
+}
+
+//function to send 1 dataset of motion sensor values string version
+void send_data_string(float data_set[]) {
+  int signs;
+  long roll  =  (long)(data_set[0] * 100) % 100000;
+  long pitch =  (long)(data_set[1] * 100) % 100000;
+  long yaw   =  (long)(data_set[2] * 100) % 100000;
+  long accX  =  (long)(data_set[3] * 100) % 100000;
+  long accY  =  (long)(data_set[4] * 100) % 100000;
+  long accZ  =  (long)(data_set[5] * 100) % 100000;
+  int index;
+  char sign[2];
+  char temp_data[16];
+
+  //packet 0
+  signs = 0;
+  index = 1;
+  for (int i = 0; i < 3; ++i) {
+    if (data_set[i] < 0) {
+      signs += 1;
+    }
+    signs *= 2;
+  }
+  String(signs).toCharArray(sign, 2);
+  temp_data[0] = sign[0];
+
+  insert_digit(temp_data, index, roll);
+  insert_digit(temp_data, index, pitch);
+  insert_digit(temp_data, index, yaw);
+
+  data_padding(temp_data);
+  packet_overhead(MOTION_ID_P1);
   Serial.write((char*)packet);
-  Serial.flush();
-  memset(temp_msg, 0, 17);
-  memset(data, 0, 17);
-  delay(20);
+  memset(data, 0, 16);
+  delay(100);
+
+  //packet 1
+  signs = 0;
+  index = 1;
+  for (int i = 0; i < 3; ++i) {
+    signs *= 2;
+    if (data_set[i + 3] < 0) {
+      signs += 1;
+    }
+  }
+  String(signs).toCharArray(sign, 2);
+  temp_data[0] = sign[0];
+
+  insert_digit(temp_data, index, accX);
+  insert_digit(temp_data, index, accY);
+  insert_digit(temp_data, index, accZ);
+
+  data_padding(temp_data);
+  packet_overhead(MOTION_ID_P2);
+  Serial.write((char*)packet);
+  memset(data, 0, 16);
+  delay(100);
 }
 
 
 void loop() {
+  //* This is for dummy data
+  start = 0;
+  memset(data_set, 0, 6);
+  data_set[0] = roll[start];
+  data_set[1] = pitch[start];
+  data_set[2] = yaw[start];
+  data_set[3] = AccX[start];
+  data_set[4] = AccY[start];
+  data_set[5] = AccZ[start];
+  //*/
+
+
   //if dont recieve ACK from laptop, send the next set
   if (millis() < time_out) {
     error = true;
@@ -121,91 +238,57 @@ void loop() {
   if (Serial.available()) {
     byte cmd = Serial.read();
     switch (cmd) {
-      case 'A': //Recieve ACK
-        data_padding(ACK);
-        packet_overhead('0');
-        Serial.write((char*)packet);
-        Serial.flush();
-        memset(data, 0, 17);
-        if (data_started) {
-          next_set = true;
-          error = false;
-          err_set = -1;
-          error_num = 0;
-        }
+      case 'A': //Received ACK
+        data_ack = true;
         if (handshake) {
           error = false;
-          dance_start = true;
-          handshake = false;
-          handshake_confirmed = true;
+          handshake_ack = true;
         }
         break;
-      case 'H'://Recieve Handshake request
-        data_padding(h_msg);
-        packet_overhead('1');
+      case 'H'://Received Handshake request
+        data_padding(HANDSHAKE);
+        packet_overhead(HANDSHAKE_ID);
         Serial.write((char*)packet);
-        Serial.flush();
-        memset(data, 0, 17);
+        memset(data, 0, 16);
+
         //Reset all boolean to default
-        data_started = false;
-        dance_start = false;
         error = false;
         handshake = true;
-        handshake_confirmed = false;
-        next_set = true;
-        current_set = 0;
-        err_set = -1;
-        error_num = 0;
+        handshake_ack = false;
         break;
-      case 'N': // Receive nack
+      case 'N': // Receive Nack
         error = true;
         break;
+      case 'W' ://Received Wakeup Call
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet);
+        memset(data, 0, 16);
     }
+  }
 
-    //if dance start send 1 dataset in 3 packets. if issue with any 3, resend packet. if error more than 3 skip current data set.
-    if (dance_start && handshake_confirmed) {
-      //if one of the 3 packets have issue resend all 3 again.
-      if (error) {
-        if (error_num > 2) {
-          next_set = true;
-          error_num = 0;
-        } else {
-          //Send data set as part of resolving error
-          data_set[0] = convert_2dp(roll[err_set]);
-          data_set[1] = convert_2dp(pitch[err_set]);
-          data_set[2] = convert_2dp(yaw[err_set]);
-          data_set[3] = convert_2dp(AccX[err_set]);
-          data_set[4] = convert_2dp(AccY[err_set]);
-          data_set[5] = convert_2dp(AccZ[err_set]);
-          //Call function to send data_set
-          dance_data(data_set);
-          error_num++;
-        }
-        error = false;
-      }
+  delay(100);
 
-      data_started = true;
-      //Only send next set if ack or err received
-      if (next_set) {
-        //prepare all data in to single array
-        time_out = millis() + 1000;
-        err_set = current_set;
-        data_set[0] = convert_2dp(roll[current_set]);
-        data_set[1] = convert_2dp(pitch[current_set]);
-        data_set[2] = convert_2dp(yaw[current_set]);
-        data_set[3] = convert_2dp(AccX[current_set]);
-        data_set[4] = convert_2dp(AccY[current_set]);
-        data_set[5] = convert_2dp(AccZ[current_set]);
-        //Call function to send data_set
-        dance_data(data_set);
-        //loop dummy data
-        if (current_set != 4) {
-          current_set++;
-        } else {
-          current_set = 0;
-        }
-        next_set = false;
-      }
-    }
+  #ifdef isMOTION
+  if (handshake_ack) {
+    send_data_string(data_set);
+
+    handshake_ack = false;
+    handshake = false;
+  }
+  #endif
+
+  if(activation_count > 0 && data_ack){
+    #ifdef isGUN
+    data_padding(GUN);
+    packet_overhead(GUN_ID);
+    #endif
+
+    #ifdef isVEST
+    data_padding(VEST);
+    packet_overhead(VEST_ID);
+    #endif
+
+    data_ack = false;
   }
 }

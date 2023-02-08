@@ -1,5 +1,5 @@
 #include <CRCx.h>
-#define BEETLE_ID '0'
+#define BEETLE_ID '1' // change based on beetle
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
@@ -8,6 +8,10 @@
 #define MOTION_ID '5'
 #define MOTION_ID_P1 '5'
 #define MOTION_ID_P2 '6'
+// uncomment the system that bluno will be used in
+#define isGUN
+//#define isVEST
+//#define isMOTION
 
 
 char HANDSHAKE[] = "HANDSHAKE";
@@ -38,8 +42,10 @@ float AccZ[] = {1, 2, 3, 4, 5};                             //2byte
 bool error = false;
 bool handshake = false;
 bool handshake_ack = false;
+bool data_ack = false;
 String time;
 unsigned long time_out = 99999999;
+volatile int activation_count = 3;
 
 void setup() {
   Serial.begin(115200);
@@ -233,6 +239,7 @@ void loop() {
     byte cmd = Serial.read();
     switch (cmd) {
       case 'A': //Received ACK
+        data_ack = true;
         if (handshake) {
           error = false;
           handshake_ack = true;
@@ -262,12 +269,26 @@ void loop() {
 
   delay(100);
 
+  #ifdef isMOTION
   if (handshake_ack) {
     send_data_string(data_set);
+
     handshake_ack = false;
     handshake = false;
+  }
+  #endif
 
+  if(activation_count > 0 && data_ack){
+    #ifdef isGUN
     data_padding(GUN);
     packet_overhead(GUN_ID);
+    #endif
+
+    #ifdef isVEST
+    data_padding(VEST);
+    packet_overhead(VEST_ID);
+    #endif
+
+    data_ack = false;
   }
 }
