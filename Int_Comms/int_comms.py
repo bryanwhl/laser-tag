@@ -301,16 +301,19 @@ laptop send ack if packet received is correct, nack if packet is corrupted
 
 motion sensor:
 UDP (standardised data rate)
-Just keep sending from arduino periodically at ard every 200ms(??)
+Just keep sending from arduino periodically at ard every 100ms(??)
 PC will drop corrupted packet 
 No action if packet lost
+packet stiching:
+    combine 2 data packet if time received is close enough
+    e.g. part 2 of data set 1 and part 1 of data set 2
 
 Points to note:
 use CRC
 packet fragmentation for large packet(only applicable for sensor)
 20byte for all packet. pad small packet and fragment big packet
 no timer for disconnection
-sent wakeup call every 5s to gun and vest
-timer for motion: reconnect if no data receive for a period of time
+sent wakeup call every 60s of inactivity(no data received) to all beetle
+if beetle is disconnected or smth, thread will close and attempt to reconnect
 
 '''
