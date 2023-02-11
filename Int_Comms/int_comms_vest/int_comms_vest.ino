@@ -1,5 +1,5 @@
 #include <CRCx.h>
-#define BEETLE_ID '0' // change based on beetle
+#define BEETLE_ID '2' // change based on beetle
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
@@ -19,6 +19,7 @@ char ACK[] = "ACK";
 char WAKEUP[] = "WAKEUP";
 char GUN[] = "GUN";
 char VEST[] = "VEST";
+int PACKET_SIZE = 20;
 
 
 //create variable to be used for packet and data processing
@@ -43,8 +44,9 @@ bool error = false;
 bool handshake = false;
 bool handshake_ack = false;
 bool data_ack = false;
+bool data_sent = false;
 String time;
-unsigned long time_out = 99999999;
+unsigned long time_out = 1000;
 volatile int activation_count = 3;
 
 void setup() {
@@ -52,6 +54,7 @@ void setup() {
   error = false;
   handshake = false;
   handshake_ack = false;
+  data_ack = false;
   while (!Serial) {
   }
   delay(1000);
@@ -156,7 +159,7 @@ void send_data_bytes(float data_set[]) {
   packet_overhead(MOTION_ID);
   Serial.write((uint8_t *)(packet), sizeof(packet));
   memset(data, 0, 16);
-  delay(50);
+  delay(80);
 }
 
 //function to send 1 dataset of motion sensor values string version
@@ -190,9 +193,9 @@ void send_data_string(float data_set[]) {
 
   data_padding(temp_data);
   packet_overhead(MOTION_ID_P1);
-  Serial.write((char*)packet);
+  Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
-  delay(100);
+  delay(90);
 
   //packet 1
   signs = 0;
@@ -212,13 +215,13 @@ void send_data_string(float data_set[]) {
 
   data_padding(temp_data);
   packet_overhead(MOTION_ID_P2);
-  Serial.write((char*)packet);
+  Serial.write((char*)packet, 20);
   memset(data, 0, 16);
-  delay(100);
 }
 
 
 void loop() {
+  
   //* This is for dummy data
   start = 0;
   memset(data_set, 0, 6);
@@ -241,14 +244,19 @@ void loop() {
       case 'A': //Received ACK
         data_ack = true;
         if (handshake) {
-          error = false;
           handshake_ack = true;
+          handshake = false;
+          delay(1000);
+        }
+        if(handshake_ack) {
+          data_sent = false;
+          error = false;
         }
         break;
       case 'H'://Received Handshake request
         data_padding(HANDSHAKE);
         packet_overhead(HANDSHAKE_ID);
-        Serial.write((char*)packet);
+        Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
 
         //Reset all boolean to default
@@ -262,33 +270,54 @@ void loop() {
       case 'W' ://Received Wakeup Call
         data_padding(ACK);
         packet_overhead(ACK_ID);
-        Serial.write((char*)packet);
+        Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
+        break;
+      default:break;
     }
   }
 
-  delay(100);
+  delay(90);
 
   #ifdef isMOTION
   if (handshake_ack) {
     send_data_string(data_set);
 
-    handshake_ack = false;
-    handshake = false;
+    //handshake_ack = false;
+    //handshake = false;
   }
   #endif
 
-  if(activation_count > 0 && data_ack){
+  if(data_ack && handshake_ack && activation_count > 0){
     #ifdef isGUN
     data_padding(GUN);
     packet_overhead(GUN_ID);
+    Serial.write((char*)packet, PACKET_SIZE);
     #endif
 
     #ifdef isVEST
     data_padding(VEST);
     packet_overhead(VEST_ID);
+    Serial.write((char*)packet, PACKET_SIZE);
+    #endif
+    data_sent = true;
+    data_ack = false;
+  }
+
+  if(error && data_sent){
+    #ifdef isGUN
+    data_padding(GUN);
+    packet_overhead(GUN_ID);
+    Serial.write((char*)packet, PACKET_SIZE);
+    #endif
+
+    #ifdef isVEST
+    data_padding(VEST);
+    packet_overhead(VEST_ID);
+    Serial.write((char*)packet, PACKET_SIZE);
     #endif
 
     data_ack = false;
+    error = false;
   }
 }

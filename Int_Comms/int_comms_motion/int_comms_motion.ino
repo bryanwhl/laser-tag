@@ -1,5 +1,5 @@
 #include <CRCx.h>
-#define BEETLE_ID '1' // change based on beetle
+#define BEETLE_ID '0' // change based on beetle
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
@@ -9,9 +9,9 @@
 #define MOTION_ID_P1 '5'
 #define MOTION_ID_P2 '6'
 // uncomment the system that bluno will be used in
-#define isGUN
+//#define isGUN
 //#define isVEST
-//#define isMOTION
+#define isMOTION
 
 
 char HANDSHAKE[] = "HANDSHAKE";
