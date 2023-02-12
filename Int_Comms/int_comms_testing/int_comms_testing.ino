@@ -9,19 +9,23 @@
 #define MOTION_ID_P1 '5'
 #define MOTION_ID_P2 '6'
 // uncomment the system that bluno will be used in
-//#define isGUN
+#define isGUN
 //#define isVEST
-#define isMOTION
+//#define isMOTION
 
 //constants
-char HANDSHAKE[] = "HANDSHAKE";
-char ACK[] = "ACK";
-char WAKEUP[] = "WAKEUP";
-char GUN[] = "GUN";
-char VEST[] = "VEST";
-char ONE[] = "1";
-char ZERO[] = "0";
-int PACKET_SIZE = 20;
+char HANDSHAKE[]  = "HANDSHAKE";
+char ACK[]        = "ACK";
+char WAKEUP[]     = "WAKEUP";
+char GUN[]        = "GUN";
+char ZEROGUN[]    = "0GUN";
+char ONEGUN[]     = "1GUN";
+char VEST[]       = "VEST";
+char ZEROVEST[]   = "0VEST";
+char ONEVEST[]    = "1VEST";
+char ONE[]        = "1";
+char ZERO[]       = "0";
+int PACKET_SIZE   = 20;
 
 
 //create variable to be used for packet and data processing
@@ -43,11 +47,11 @@ float AccZ[] = {0.9231, 2, 3, 4, 5};                         //2byte
 //boolean checks for logic program
 //check that data transfer has begin
 //check if receive error or handshake from laptop
-bool error = false;
-bool handshake = false;
-bool handshake_ack = false;
-bool data_ack = false;
-bool data_sent = false;
+bool error          = false;
+bool handshake      = false;
+bool handshake_ack  = false;
+bool data_ack       = false;
+bool data_sent      = false;
 unsigned long TIMEOUT = 1000;
 unsigned long sent_time;
 volatile int activation_count = 3;
@@ -230,7 +234,7 @@ void send_data_string(float data_set[]) {
 
 
 void loop() {
-  
+
   //* This is for dummy data
   start = 0;
   memset(data_set, 0, 6);
@@ -244,17 +248,17 @@ void loop() {
 
 
   //if dont recieve ACK from laptop, send the next set. Not applicable for motion sensor
-  #ifndef isMOTION
+#ifndef isMOTION
   if (millis() - sent_time < TIMEOUT) {
     error = true;
   }
-  #endif
+#endif
 
   if (Serial.available()) {
     byte cmd = Serial.read();
     switch (cmd) {
       case '0':
-        if(seq_num == 0){
+        if (seq_num == 0) {
           data_ack = true;
           data_sent = false;
           error = false;
@@ -263,7 +267,7 @@ void loop() {
         }
         break;
       case '1':
-        if(seq_num == 1){
+        if (seq_num == 1) {
           data_ack = true;
           data_sent = false;
           error = false;
@@ -279,13 +283,13 @@ void loop() {
           delay(1000);
         }
         /*
-        if(handshake_ack) {
+          if(handshake_ack) {
           data_sent = false;
           error = false;
           activation_count -= 1;
           if(seq_num == 0) seq_num = 1;
           else seq_num = 0;
-        }//*/
+          }//*/
         break;
       case 'H'://Received Handshake request
         data_padding(HANDSHAKE);
@@ -310,83 +314,82 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      default:break;
+      default: break;
     }
   }
 
   delay(50);
 
   //spam sending of data for motion sensor
-  #ifdef isMOTION
+#ifdef isMOTION
   if (handshake_ack) {
     send_data_string(data_set);
 
     //handshake_ack = false;
     //handshake = false;
   }
-  #endif
+#endif
 
   //stop and wait for gun and vest
-  #ifndef isMOTION
-  if(data_ack && !data_sent && handshake_ack && activation_count > 0){
-    #ifdef isGUN
+#ifndef isMOTION
+  if (data_ack && !data_sent && handshake_ack && activation_count > 0) {
+#ifdef isGUN
     if (seq_num == 0) {
-      data_padding(ZERO + GUN);
+      data_padding(ZEROGUN);
     } else if (seq_num == 1) {
-      data_padding(ONE + GUN);
+      data_padding(ONEGUN);
     }
     packet_overhead(GUN_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
-    #ifdef isVEST
+#ifdef isVEST
     if (seq_num == 0) {
-      data_padding(ZERO + VEST);
+      data_padding(ZEROVEST);
     } else if (seq_num == 1) {
-      data_padding(ONE + VEST);
+      data_padding(ONEVEST);
     }
     packet_overhead(VEST_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
     data_sent = true;
     data_ack = false;
     sent_time = millis();
   }
 
-  if(error && data_sent){
-    #ifdef isGUN
+  if (error && data_sent) {
+#ifdef isGUN
     if (seq_num == 0) {
-      data_padding(ZERO + GUN);
+      data_padding(ZEROGUN);
     } else if (seq_num == 1) {
-      data_padding(ONE + GUN);
+      data_padding(ONEGUN);
     }
-    data_padding(GUN);
     packet_overhead(GUN_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
-    #ifdef isVEST
+#ifdef isVEST
     if (seq_num == 0) {
-      data_padding(ZERO + VEST);
+      data_padding(ZEROVEST);
     } else if (seq_num == 1) {
-      data_padding(ONE + VEST);
+      data_padding(ONEVEST);
     }
     packet_overhead(VEST_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
     data_ack = false;
     error = false;
   }
-  #endif
+#endif
 }
 
 
 /*
-FLOW FOR STOP AND WAIT:
+  FLOW FOR STOP AND WAIT:
 
-AFTER HANDSHAKE ACK IS RECEIVED
-IF COUNT >0: (count will increment based on sensors. dummy value for now)
+  AFTER HANDSHAKE ACK IS RECEIVED
+  IF COUNT >0: (count will increment based on sensors. dummy value for now)
   LOOP()
     BEETLE SEND DATA IF HAVE NOT SEND YET AND PREV DATA IS ACKED
       trigger boolean to indicate data is sent
@@ -401,5 +404,5 @@ IF COUNT >0: (count will increment based on sensors. dummy value for now)
       resend same data
       rinse and repeat in loop(possible only when dc or bad connection)
 
-??? do i want to have nack or just abuse timeout to resend ???
+  ??? do i want to have nack or just abuse timeout to resend ???
 */
