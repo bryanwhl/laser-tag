@@ -67,7 +67,7 @@ void setup() {
   seq_num = 0;
   while (!Serial) {
   }
-  delay(1000);
+  delay(100);
 }
 
 // count number of digit in data
@@ -235,6 +235,7 @@ void send_data_string(float data_set[]) {
 
 void loop() {
 
+#ifdef isMOTION
   //* This is for dummy data
   start = 0;
   memset(data_set, 0, 6);
@@ -245,11 +246,11 @@ void loop() {
   data_set[4] = AccY[start];
   data_set[5] = AccZ[start];
   //*/
-
+#endif
 
   //if dont recieve ACK from laptop, send the next set. Not applicable for motion sensor
 #ifndef isMOTION
-  if (millis() - sent_time < TIMEOUT) {
+  if (millis() - sent_time >= TIMEOUT) {
     error = true;
   }
 #endif
@@ -309,7 +310,7 @@ void loop() {
         error = true;
         break;
       case 'W' ://Received Wakeup Call
-        data_padding(ACK);
+        data_padding(WAKEUP);
         packet_overhead(WAKEUP_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);

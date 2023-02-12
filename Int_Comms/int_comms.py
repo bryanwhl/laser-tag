@@ -22,7 +22,14 @@ connection_threads = {}
 "B0:B1:13:2D:D8:AC"
 "B0:B1:13:2D:D8:8C"
 '''
-beetle_addresses = ["B0:B1:13:2D:D4:AB", "B0:B1:13:2D:D8:8C", "B0:B1:13:2D:D8:AC"]
+beetle_addresses = [
+    #"B0:B1:13:2D:D4:AB", 
+    "B0:B1:13:2D:D8:8C", 
+    #"B0:B1:13:2D:D8:AC"
+    #"B0:B1:13:2D:CD:A2"
+    #"B0:B1:13:2D:D4:89"
+    #"B0:B1:13:2D:B3:08"
+    ]
 beetle_status = {}
 PACKET_LENGTH = 20
 
@@ -205,7 +212,6 @@ class BeetleThread(Thread):
                 time_diff = self.current_time - self.last_sync_time
                 if (time_diff.total_seconds() > 60):
                     self.wakeup(self.pheripheral)
-                    self.last_sync_time = datetime.now()
 
                 # call data collecting comms
                 self.receive_data(self.pheripheral)
@@ -283,11 +289,15 @@ class BeetleThread(Thread):
             self.packet_1 = False
             
     def acknowledge_data(self):
+        
+        #print("DATA RECEIVED. ACK SENT:", str(self.seq_num))
+        print(CR, SPACE, CR, "DATA RECEIVED. ACK SENT", end = END)
         self.send_data(str(self.seq_num))
         if(self.seq_num == 1):
             self.seq_num = 0
         elif(self.seq_num == 0):
             self.seq_num = 1
+        #print("NEW SEQ NUM:", self.seq_num)
             
     def data_rate(self):
         #1byte = 8bit
