@@ -249,10 +249,10 @@ class BeetleThread(Thread):
     def wakeup(self, p):
         # Send handshake pac
         print(CR, SPACE, CR, "WAKE UP CALL", end = END)
-        self.send_data("W")
         # Wait for ack packet from bluno
         while (not self.ACK):
-            p.waitForNotifications(0.1)
+            self.send_data("W")
+            p.waitForNotifications(0.5)
         print(CR, SPACE, CR, "WAKEUP ACKED", end = END)
         self.ACK = False
 
@@ -300,6 +300,7 @@ class BeetleThread(Thread):
         #print("NEW SEQ NUM:", self.seq_num)
             
     def data_rate(self):
+        #https://www.symmetryelectronics.com/blog/classic-bluetooth-vs-bluetooth-low-energy-a-round-by-round-battle/
         #1byte = 8bit
         kbps = (self.total_data_received * 8) / (1000 * (datetime.now() - self.start_time).total_seconds())
         print(CR, SPACE, CR, "Data rate(kbps):", kbps, end = END)
@@ -339,10 +340,6 @@ def reconnection(addr, index):
         except Exception:
             time.sleep(1)
             continue
-
-def overall_data_rate():
-        kbps = all_threads_data_rcv * 8 / 1000 * (datetime.now() - program_start_time).total_seconds()
-        print(CR, SPACE, CR, "Overall data rate:", kbps, end = END)
 
 def main():
     for i in range(len(beetle_addresses)):
