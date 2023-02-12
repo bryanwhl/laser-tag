@@ -355,6 +355,7 @@ void loop() {
     data_sent = true;
     data_ack = false;
     sent_time = millis();
+    error = false;
   }
 
   if (error && data_sent) {
@@ -379,6 +380,7 @@ void loop() {
 #endif
 
     data_ack = false;
+    sent_time = millis();
     error = false;
   }
 #endif
