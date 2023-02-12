@@ -310,7 +310,7 @@ void loop() {
         break;
       case 'W' ://Received Wakeup Call
         data_padding(ACK);
-        packet_overhead(ACK_ID);
+        packet_overhead(WAKEUP_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
