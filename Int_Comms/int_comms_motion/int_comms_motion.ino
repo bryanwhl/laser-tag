@@ -46,7 +46,7 @@ bool handshake_ack = false;
 bool data_ack = false;
 bool data_sent = false;
 String time;
-unsigned long time_out = 1000;
+unsigned long TIMEOUT = 1000;
 volatile int activation_count = 3;
 
 void setup() {
@@ -235,7 +235,7 @@ void loop() {
 
 
   //if dont recieve ACK from laptop, send the next set
-  if (millis() < time_out) {
+  if (millis() < TIMEOUT) {
     error = true;
   }
   if (Serial.available()) {

@@ -46,7 +46,8 @@ bool handshake_ack = false;
 bool data_ack = false;
 bool data_sent = false;
 String time;
-unsigned long time_out = 1000;
+unsigned long TIMEOUT = 1000;
+unsigned long sent_time;
 volatile int activation_count = 3;
 
 void setup() {
@@ -55,6 +56,7 @@ void setup() {
   handshake = false;
   handshake_ack = false;
   data_ack = false;
+  sent_time = millis();
   while (!Serial) {
   }
   delay(1000);
@@ -221,7 +223,7 @@ void send_data_string(float data_set[]) {
 
 
 void loop() {
-  
+
   //* This is for dummy data
   start = 0;
   memset(data_set, 0, 6);
@@ -235,7 +237,7 @@ void loop() {
 
 
   //if dont recieve ACK from laptop, send the next set
-  if (millis() < time_out) {
+  if (millis() - sent_time > TIMEOUT) {
     error = true;
   }
   if (Serial.available()) {
@@ -248,7 +250,7 @@ void loop() {
           handshake = false;
           delay(1000);
         }
-        if(handshake_ack) {
+        if (handshake_ack) {
           data_sent = false;
           error = false;
         }
@@ -273,49 +275,53 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      default:break;
+      default:
+        //Serial.write(Serial.read());
+        break;
     }
   }
 
   delay(90);
 
-  #ifdef isMOTION
+#ifdef isMOTION
   if (handshake_ack) {
     send_data_string(data_set);
 
     //handshake_ack = false;
     //handshake = false;
   }
-  #endif
+#endif
 
-  if(data_ack && handshake_ack && activation_count > 0){
-    #ifdef isGUN
+  if (data_ack && handshake_ack && activation_count > 0) {
+#ifdef isGUN
     data_padding(GUN);
     packet_overhead(GUN_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
-    #ifdef isVEST
+#ifdef isVEST
     data_padding(VEST);
     packet_overhead(VEST_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
+
     data_sent = true;
     data_ack = false;
+    sent_time = millis();
   }
 
-  if(error && data_sent){
-    #ifdef isGUN
+  if (error && data_sent) {
+#ifdef isGUN
     data_padding(GUN);
     packet_overhead(GUN_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
-    #ifdef isVEST
+#ifdef isVEST
     data_padding(VEST);
     packet_overhead(VEST_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    #endif
+#endif
 
     data_ack = false;
     error = false;
