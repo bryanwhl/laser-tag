@@ -32,8 +32,6 @@ SPACE = ""
 END = "\n"
 
 #variables for data rate
-global all_threads_data_rcv
-all_threads_data_rcv = 0
 program_start_time = datetime.now()
 
 # https://careerkarma.com/blog/python-string-to-int/
@@ -51,10 +49,7 @@ class MyDelegate(btle.DefaultDelegate):
         self.buffer += clean_data(str(data))
         
         connection_threads[self.connection_index].total_data_received += utf8len(str(data))
-        all_threads_data_rcv += utf8len(str(data))
-        #connection_threads[self.connection_index].data_rate()
-        overall_data_rate()
-        
+        connection_threads[self.connection_index].data_rate()
         
         if(len(self.buffer) >= PACKET_LENGTH):
             data_string = self.buffer[:PACKET_LENGTH]
