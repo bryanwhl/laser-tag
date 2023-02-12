@@ -229,9 +229,11 @@ class BeetleThread(Thread):
             # Wait for Handshake packet from bluno, sent handshake req agn if not received after some time
             while(count < 5):
                 #print(self.connection_index, " waiting for handshake...")
-                p.waitForNotifications(2)
+                p.waitForNotifications(1)
                 time.sleep(0.1)
                 count += 1
+                if(self.handshake_status):
+                    break
         # Send back 
         print(CR, SPACE, CR, "HANDSHAKE RECEIVED, RETURN ACK", end = END)
         self.send_data("A")
@@ -244,7 +246,7 @@ class BeetleThread(Thread):
         self.send_data("W")
         # Wait for ack packet from bluno
         while (not self.ACK):
-            p.waitForNotifications
+            p.waitForNotifications(0.1)
         print(CR, SPACE, CR, "WAKEUP ACKED", end = END)
         self.ACK = False
 
@@ -273,7 +275,7 @@ class BeetleThread(Thread):
             self.error = False
             
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
-        if self.packet_0 & self.packet_1 & abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
+        if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
             print(CR, SPACE, CR, "Full motion sensor data received", end = END)
             #print("\r", self.current_data)
             #each data can only be used once

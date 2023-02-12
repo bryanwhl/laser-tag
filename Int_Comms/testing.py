@@ -210,7 +210,7 @@ class BeetleThread(Thread):
         # Send back 
         print("\rHANDSHAKE RECEIVED, RETURN ACK")
         self.send_data("A")
-        time.sleep(10.0)
+        time.sleep(2.0)
 
     def wakeup(self, p):
         # Send handshake pac
