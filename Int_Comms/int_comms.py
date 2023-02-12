@@ -78,11 +78,11 @@ class MyDelegate(btle.DefaultDelegate):
                     print(CR, SPACE, CR, "Wakeup reply received", end = END)
                     connection_threads[self.connection_index].ACK = True
                 elif ((PACKET_ID == '3') and (DATA[1:] == "GUN")):
-                    if(DATA[0] == connection_threads[self.connection_index].seq_num):
+                    if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         print(CR, SPACE, CR, "Player has fired a shot", end = END)
                         connection_threads[self.connection_index].send_ack = True
                 elif ((PACKET_ID == '4') and (DATA[1:] == "VEST")):
-                    if(DATA[0] == connection_threads[self.connection_index].seq_num):
+                    if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         print(CR, SPACE, CR, "Player has been hit", end = END)
                         connection_threads[self.connection_index].send_ack = True
                 elif ((PACKET_ID == '5')):
