@@ -301,8 +301,8 @@ class BeetleThread(Thread):
             
     def data_rate(self):
         #1byte = 8bit
-        kbps = self.total_data_received * 8 / 1000 * (datetime.now() - self.start_time).total_seconds()
-        print(CR, SPACE, CR, "Data rate:", kbps, end = END)
+        kbps = (self.total_data_received * 8) / (1000 * (datetime.now() - self.start_time).total_seconds())
+        print(CR, SPACE, CR, "Data rate(kbps):", kbps, end = END)
         
     def send_data(self, message):
         #print(message, " message sent to ", self.connection_index)
