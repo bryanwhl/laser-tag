@@ -23,9 +23,9 @@ connection_threads = {}
 "B0:B1:13:2D:D8:8C"
 '''
 beetle_addresses = [
-    #"B0:B1:13:2D:D4:AB", 
+    "B0:B1:13:2D:D4:AB", 
     "B0:B1:13:2D:D8:8C", 
-    #"B0:B1:13:2D:D8:AC"
+    "B0:B1:13:2D:D8:AC"
     #"B0:B1:13:2D:CD:A2"
     #"B0:B1:13:2D:D4:89"
     #"B0:B1:13:2D:B3:08"
@@ -50,7 +50,7 @@ class MyDelegate(btle.DefaultDelegate):
         self.buffer = ""
 
     def handleNotification(self, cHandle, data):
-        print(connection_threads[self.connection_index].addr, " ", data)
+        #print(connection_threads[self.connection_index].addr, " ", data)
         
         #add received data to buffer
         self.buffer += clean_data(str(data))
@@ -114,6 +114,7 @@ class MyDelegate(btle.DefaultDelegate):
                             
             else:
                 print(CR, SPACE, CR, "ERR in CRC", end = END)
+                self.buffer = ""
                 #reset all boolean when error in packet
                 connection_threads[self.connection_index].error = True
                 #connection_threads[self.connection_index].packet_0 = False
@@ -274,7 +275,7 @@ class BeetleThread(Thread):
         #if there is error in crc
         if self.error:
             if (self.err_count > 8):
-                raise BTLEException("continous error in packet from ", self.connection_index)
+                raise BTLEException("continous error in packet")
             #print(CR, SPACE, CR, "PACKET CORRUPTED NACK SENT", end = END)
             #self.send_data("N")
             self.err_count = self.err_count+1

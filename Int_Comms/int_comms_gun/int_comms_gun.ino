@@ -207,7 +207,7 @@ void send_data_string(float data_set[]) {
   packet_overhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
-  delay(50);
+  delay(30);
 
   //packet 1
   signs = 0;
@@ -280,7 +280,7 @@ void loop() {
         if (handshake) {
           handshake_ack = true;
           handshake = false;
-          delay(1000);
+          delay(100);
         }
         /*
           if(handshake_ack) {
@@ -318,7 +318,7 @@ void loop() {
     }
   }
 
-  delay(50);
+  delay(30);
 
   //spam sending of data for motion sensor
 #ifdef isMOTION
