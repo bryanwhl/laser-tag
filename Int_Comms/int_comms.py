@@ -48,17 +48,22 @@ class MyDelegate(btle.DefaultDelegate):
         self.connection_index = connection_index
         self.ID = str(connection_index)
         self.buffer = ""
+        self.packet_processed = 0
+        self.packet_total = 0
 
     def handleNotification(self, cHandle, data):
         print(connection_threads[self.connection_index].addr, " ", data)
         
         #add received data to buffer
         self.buffer += clean_data(str(data))
+        self.packet_total += 1
         
         connection_threads[self.connection_index].total_data_received += utf8len(str(data))
         connection_threads[self.connection_index].data_rate()
+        print(CR, "packets received: ", self.packet_total, "complete packets: ", self.packet_processed, SPACE, end = END)
         
         if(len(self.buffer) >= PACKET_LENGTH):
+            self.packet_processed += 1
             data_string = self.buffer[:PACKET_LENGTH]
             #print("data_string used: ", data_string)
             self.buffer = self.buffer[PACKET_LENGTH:]
