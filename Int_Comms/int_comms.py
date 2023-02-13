@@ -34,9 +34,9 @@ beetle_status = {}
 PACKET_LENGTH = 20
 
 #constants for print formatting
-CR = ""
-SPACE = ""
-END = "\n"
+CR = "\r"
+SPACE = "                                                    "
+END = ""
 
 #variables for data rate
 program_start_time = datetime.now()
@@ -67,7 +67,7 @@ class MyDelegate(btle.DefaultDelegate):
                 BEETLE_ID = data_string[0]
                 PACKET_ID = data_string[1]
                 DATA = clear_padding(data_string[2:-2])
-                print(CR, SPACE, CR, "data received from ", BEETLE_ID, end = END)
+                print(CR, "data received from ", BEETLE_ID, SPACE, end = END)
                 
                 #(BEETLE_ID == self.ID) and 
                 
@@ -76,24 +76,24 @@ class MyDelegate(btle.DefaultDelegate):
                 
                 #handle packet from beetle
                 if ((PACKET_ID == '0') and (DATA == "ACK")):
-                    print(CR, SPACE, CR, "ACK received", end = END)
+                    print(CR, "ACK received", SPACE, end = END)
                     connection_threads[self.connection_index].ACK = True
                 elif ((PACKET_ID == '1') and (DATA == "HANDSHAKE")):
-                    print(CR, SPACE, CR, "Handshake reply received", end = END)
-                    connection_threads[self.connection_index].handshake_status = True
+                    print(CR, "Handshake reply received", SPACE, end = END)
+                    connection_threads[self.connection_index].handshake_reply = True
                 elif ((PACKET_ID == '2') and (DATA == "WAKEUP")):
-                    print(CR, SPACE, CR, "Wakeup reply received", end = END)
+                    print(CR, "Wakeup reply received", SPACE, end = END)
                     connection_threads[self.connection_index].ACK = True
                 elif ((PACKET_ID == '3') and (DATA[1:] == "GUN")):
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
-                        print(CR, SPACE, CR, "Player has fired a shot", end = END)
+                        print(CR, "Player has fired a shot", SPACE, end = END)
                         connection_threads[self.connection_index].send_ack = True
                 elif ((PACKET_ID == '4') and (DATA[1:] == "VEST")):
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
-                        print(CR, SPACE, CR, "Player has been hit", end = END)
+                        print(CR, "Player has been hit", SPACE, end = END)
                         connection_threads[self.connection_index].send_ack = True
                 elif ((PACKET_ID == '5')):
-                    print(CR, SPACE, CR, "Motion sensor data packet 1 obtained", end = END)
+                    print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     connection_threads[self.connection_index].packet_0 = True
@@ -102,7 +102,7 @@ class MyDelegate(btle.DefaultDelegate):
                     connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
                     connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
                 elif ((PACKET_ID == '6')):
-                    print(CR, SPACE, CR, "Motion sensor data packet 2 obtained", end = END)
+                    print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     connection_threads[self.connection_index].packet_1 = True
@@ -113,7 +113,7 @@ class MyDelegate(btle.DefaultDelegate):
                     
                             
             else:
-                print(CR, SPACE, CR, "ERR in CRC", end = END)
+                print(CR, "ERR in CRC", SPACE, end = END)
                 self.buffer = ""
                 #reset all boolean when error in packet
                 connection_threads[self.connection_index].error = True
@@ -176,7 +176,7 @@ class BeetleThread(Thread):
     start_time = datetime.now()
     last_sync_time = start_time
     current_time = start_time
-    handshake_status = False
+    handshake_reply = False
     ACK = False
     packet_0 = False
     packet_1 = False
@@ -228,33 +228,43 @@ class BeetleThread(Thread):
             sys.exit(1)
 
     def handshake(self, p):
-        while (not self.handshake_status):
+        while (not self.handshake_reply):
             count = 0
             # Send handshake packet
             self.send_data("H")
-            print(CR, SPACE, CR, "HANDSHAKE SENT", end = END)
+            print(CR, "HANDSHAKE SENT", SPACE, end = END)
             # Wait for Handshake packet from bluno, sent handshake req agn if not received after some time
             while(count < 5):
                 #print(self.connection_index, " waiting for handshake...")
                 p.waitForNotifications(1)
                 time.sleep(0.1)
                 count += 1
-                if(self.handshake_status):
+                if(self.handshake_reply):
                     break
         # Send back 
-        print(CR, SPACE, CR, "HANDSHAKE RECEIVED, RETURN ACK", end = END)
+        print(CR, "HANDSHAKE RECEIVED, RETURN ACK", SPACE, end = END)
         self.send_data("A")
+        self.handshake_reply = False
+        count = 0
+        #wait incase there is retransmission of handshake by beetle
+        while(count < 5):
+            p.waitForNotifications(0.1)
+            if(self.handshake_reply):
+                count = 0
+                self.send_data
+                self.handshake_reply = False
+            count += 1
         time.sleep(2.0)
         self.start_time = datetime.now()
 
     def wakeup(self, p):
         # Send handshake pac
-        print(CR, SPACE, CR, "WAKE UP CALL", end = END)
+        print(CR, "WAKE UP CALL", SPACE, end = END)
         # Wait for ack packet from bluno
         while (not self.ACK):
             self.send_data("W")
             p.waitForNotifications(0.5)
-        print(CR, SPACE, CR, "WAKEUP ACKED", end = END)
+        print(CR, "WAKEUP ACKED", SPACE, end = END)
         self.ACK = False
 
     def receive_data(self, p):
@@ -276,14 +286,14 @@ class BeetleThread(Thread):
         if self.error:
             if (self.err_count > 8):
                 raise BTLEException("continous error in packet")
-            #print(CR, SPACE, CR, "PACKET CORRUPTED NACK SENT", end = END)
+            #print(CR, "PACKET CORRUPTED NACK SENT", SPACE, end = END)
             #self.send_data("N")
             self.err_count = self.err_count+1
             self.error = False
             
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
         if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
-            print(CR, SPACE, CR, "Full motion sensor data received", end = END)
+            print(CR, "Full motion sensor data received", SPACE, end = END)
             #print("\r", self.current_data)
             #each data can only be used once
             self.packet_0 = False
@@ -292,7 +302,7 @@ class BeetleThread(Thread):
     def acknowledge_data(self):
         
         #print("DATA RECEIVED. ACK SENT:", str(self.seq_num))
-        print(CR, SPACE, CR, "DATA RECEIVED. ACK SENT", end = END)
+        print(CR, "DATA RECEIVED. ACK SENT", SPACE, end = END)
         self.send_data(str(self.seq_num))
         if(self.seq_num == 1):
             self.seq_num = 0
@@ -304,7 +314,7 @@ class BeetleThread(Thread):
         #https://www.symmetryelectronics.com/blog/classic-bluetooth-vs-bluetooth-low-energy-a-round-by-round-battle/
         #1byte = 8bit
         kbps = (self.total_data_received * 8) / (1000 * (datetime.now() - self.start_time).total_seconds())
-        print(CR, SPACE, CR, "Data rate(kbps):", kbps, end = END)
+        print(CR, "Data rate(kbps):", kbps, SPACE, end = END)
         
     def send_data(self, message):
         #print(message, " message sent to ", self.connection_index)
@@ -314,14 +324,14 @@ class BeetleThread(Thread):
     def establish_connection(self):
         while True:
             try:
-                print(CR, SPACE, CR, "CONNECTING TO ", self.addr, end = END)
+                print(CR, "CONNECTING TO ", self.addr, SPACE, end = END)
                 
                 self.pheripheral = Peripheral(self.addr)
                 beetle_status[self.connection_index] = self.pheripheral
                 self.service = self.pheripheral.getServices()
                 self.characteristic = self.pheripheral.getCharacteristics()
                 self.pheripheral.setDelegate(MyDelegate(self.connection_index))
-                print(CR, SPACE, CR, "CONNECTED TO ", self.addr, end = END)
+                print(CR, "CONNECTED TO ", self.addr, SPACE, end = END)
                 
                 break
             except BTLEException:
@@ -329,10 +339,10 @@ class BeetleThread(Thread):
 
 
 def reconnection(addr, index):
-    #print("\rRECONNECTING...", end = END)
+    #print("\rRECONNECTING...", SPACE, end = END)
     while True:
         try:
-            print(CR, SPACE, CR, "RECONNECTING %s" % (addr), end = END)
+            print(CR, "RECONNECTING %s" % (addr), SPACE, end = END)
             t = BeetleThread(index, addr)
             # start thread
             t.start()

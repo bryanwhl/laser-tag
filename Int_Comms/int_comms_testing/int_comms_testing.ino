@@ -249,11 +249,9 @@ void loop() {
 #endif
 
   //if dont recieve ACK from laptop, send the next set. Not applicable for motion sensor
-#ifndef isMOTION
   if (millis() - sent_time >= TIMEOUT) {
     error = true;
   }
-#endif
 
   if (Serial.available()) {
     byte cmd = Serial.read();
@@ -297,6 +295,7 @@ void loop() {
         packet_overhead(HANDSHAKE_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
+        sent_time = millis();
 
         //Reset all boolean to default since handshake req is only when connecting/reconnecting
         error = false;
@@ -320,6 +319,13 @@ void loop() {
   }
 
   delay(30);
+  if(!handshake_ack && error) {
+    data_padding(HANDSHAKE);
+    packet_overhead(HANDSHAKE_ID);
+    Serial.write((char*)packet, PACKET_SIZE);
+    sent_time = millis();
+    error = false;
+  }
 
   //spam sending of data for motion sensor
 #ifdef isMOTION
