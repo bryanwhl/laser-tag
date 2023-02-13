@@ -296,10 +296,10 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         sent_time = millis();
+        handshake = true;
 
         //Reset all boolean to default since handshake req is only when connecting/reconnecting
         error = false;
-        handshake = true;
         handshake_ack = false;
         data_ack = false;
         data_sent = false;
@@ -319,7 +319,7 @@ void loop() {
   }
 
   delay(30);
-  if(!handshake_ack && error) {
+  if(handshake && !handshake_ack && error) {
     data_padding(HANDSHAKE);
     packet_overhead(HANDSHAKE_ID);
     Serial.write((char*)packet, PACKET_SIZE);

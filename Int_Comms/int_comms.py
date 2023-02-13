@@ -36,7 +36,7 @@ PACKET_LENGTH = 20
 #constants for print formatting
 CR = "\r"
 SPACE = "                                                    "
-END = ""
+END = "\n"
 
 #variables for data rate
 program_start_time = datetime.now()
@@ -50,7 +50,7 @@ class MyDelegate(btle.DefaultDelegate):
         self.buffer = ""
 
     def handleNotification(self, cHandle, data):
-        #print(connection_threads[self.connection_index].addr, " ", data)
+        print(connection_threads[self.connection_index].addr, " ", data)
         
         #add received data to buffer
         self.buffer += clean_data(str(data))
@@ -248,10 +248,11 @@ class BeetleThread(Thread):
         count = 0
         #wait incase there is retransmission of handshake by beetle
         while(count < 5):
+            print("rched here ", count)
             p.waitForNotifications(0.1)
             if(self.handshake_reply):
                 count = 0
-                self.send_data
+                self.send_data("A")
                 self.handshake_reply = False
             count += 1
         time.sleep(2.0)
