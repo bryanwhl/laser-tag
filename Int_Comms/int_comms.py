@@ -36,7 +36,7 @@ PACKET_LENGTH = 20
 #constants for print formatting
 CR = "\r"
 SPACE = "                                                    "
-END = "\n"
+END = ""
 
 #variables for data rate
 program_start_time = datetime.now()
@@ -60,7 +60,6 @@ class MyDelegate(btle.DefaultDelegate):
         
         connection_threads[self.connection_index].total_data_received += utf8len(str(data))
         connection_threads[self.connection_index].data_rate()
-        print(CR, "packets received: ", self.packet_total, "complete packets: ", self.packet_processed, SPACE, end = END)
         
         if(len(self.buffer) >= PACKET_LENGTH):
             self.packet_processed += 1
@@ -125,6 +124,8 @@ class MyDelegate(btle.DefaultDelegate):
                 #connection_threads[self.connection_index].packet_0 = False
                 #connection_threads[self.connection_index].packet_1 = False
                 time.sleep(0.01)
+                
+        print(CR, "packets received: ", self.packet_total, "complete packets: ", self.packet_processed, SPACE, end = END)
 
 # data processing for incoming packets
 
@@ -253,7 +254,6 @@ class BeetleThread(Thread):
         count = 0
         #wait incase there is retransmission of handshake by beetle
         while(count < 5):
-            print("rched here ", count)
             p.waitForNotifications(0.1)
             if(self.handshake_reply):
                 count = 0
