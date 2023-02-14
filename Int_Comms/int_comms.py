@@ -89,13 +89,21 @@ class MyDelegate(btle.DefaultDelegate):
                     print(CR, "Wakeup reply received", SPACE, end = END)
                     connection_threads[self.connection_index].ACK = True
                 elif ((PACKET_ID == '3') and (DATA[1:] == "GUN")):
+                    connection_threads[self.connection_index].send_ack = True
+                    connection_threads[self.connection_index].rcv_seq_num = DATA[0]
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
+                        connection_threads[self.connection_index].correct_seq_num = True
                         print(CR, "Player has fired a shot", SPACE, end = END)
-                        connection_threads[self.connection_index].send_ack = True
+                    else:
+                        connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '4') and (DATA[1:] == "VEST")):
+                    connection_threads[self.connection_index].send_ack = True
+                    connection_threads[self.connection_index].rcv_seq_num = DATA[0]
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
+                        connection_threads[self.connection_index].correct_seq_num = True
                         print(CR, "Player has been hit", SPACE, end = END)
-                        connection_threads[self.connection_index].send_ack = True
+                    else:
+                        connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '5')):
                     print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
@@ -192,6 +200,8 @@ class BeetleThread(Thread):
     error = False
     seq_num = 0
     send_ack = False
+    correct_seq_num = False
+    rcv_seq_num = "x"
     err_count = 0
     current_data = {
         "roll": "#",
@@ -253,8 +263,8 @@ class BeetleThread(Thread):
         self.handshake_reply = False
         count = 0
         #wait incase there is retransmission of handshake by beetle
-        while(count < 5):
-            p.waitForNotifications(0.1)
+        while(count < 6):
+            p.waitForNotifications(0.2)
             if(self.handshake_reply):
                 count = 0
                 self.send_data("A")
@@ -288,6 +298,7 @@ class BeetleThread(Thread):
         for x in range(2):
             p.waitForNotifications(0.1)
         
+        #for stop and wait
         if(self.send_ack):
             self.acknowledge_data()
             self.send_ack = False
@@ -313,10 +324,10 @@ class BeetleThread(Thread):
         
         #print("DATA RECEIVED. ACK SENT:", str(self.seq_num))
         print(CR, "DATA RECEIVED. ACK SENT", SPACE, end = END)
-        self.send_data(str(self.seq_num))
-        if(self.seq_num == 1):
+        self.send_data(self.rcv_seq_num)
+        if(self.correct_seq_num and self.seq_num == 1):
             self.seq_num = 0
-        elif(self.seq_num == 0):
+        elif(self.correct_seq_num and self.seq_num == 0):
             self.seq_num = 1
         #print("NEW SEQ NUM:", self.seq_num)
             
