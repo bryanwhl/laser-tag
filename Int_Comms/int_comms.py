@@ -15,6 +15,7 @@ from math import floor
 #variables for beetle
 connection_threads = {}
 '''
+all beetle address - to label system after hardware guy finalise
 "B0:B1:13:2D:D4:AB"
 "B0:B1:13:2D:CD:A2" 
 "B0:B1:13:2D:D4:89"
@@ -390,9 +391,9 @@ handshake at start for all 6
 gun & vest:
 stop & wait for now
 use timer to send wakeup call?
-arduino side to retransmit after 100ms(??) of waiting for ack (ack or packet is lost)
+arduino side to retransmit after 1s of waiting for ack (ack or packet is lost)
 packet will have sequence number alternating between 1 and 0 (prevent duplicate packet if ack is lost)
-laptop send ack if packet received is correct, nack if packet is corrupted
+laptop send ack if packet received is correct do nth if packet is corrupted, beetle will retransmit after timeout
 
 motion sensor:
 UDP (standardised data rate)
@@ -402,6 +403,8 @@ No action if packet lost
 packet stiching:
     combine 2 data packet if time received is close enough
     e.g. part 2 of data set 1 and part 1 of data set 2
+each packet data can only be used once 
+ to prevent situation such as: a.1+a.2, a.2+b.1, b.1+b.2 => middle dataset is some sort of duplicate
 
 Points to note:
 use CRC
