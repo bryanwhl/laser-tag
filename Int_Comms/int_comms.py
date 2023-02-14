@@ -181,7 +181,7 @@ def crc_check(data_string):
     else:
         return False
 
-# Thread generation for each beetle
+# Thread generation for each beetle https://thispointer.com/create-a-thread-using-class-in-python/
 # To use for timeout to trigger sending of wakeup call https://pynative.com/python-get-time-difference/
 # https://www.w3schools.com/python/python_dictionaries.asp
 
