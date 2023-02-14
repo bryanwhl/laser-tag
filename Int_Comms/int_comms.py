@@ -316,7 +316,7 @@ class BeetleThread(Thread):
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
         if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
             print(CR, "Full motion sensor data received", SPACE, end = END)
-            #print("\r", self.current_data)
+            #print(CR, self.current_data, SPACE, end = END)
             #each data can only be used once
             self.packet_0 = False
             self.packet_1 = False
