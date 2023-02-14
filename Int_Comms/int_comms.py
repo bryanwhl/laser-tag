@@ -265,11 +265,15 @@ class BeetleThread(Thread):
 
     def wakeup(self, p):
         # Send handshake pac
+        count = 0
         print(CR, "WAKE UP CALL", SPACE, end = END)
         # Wait for ack packet from bluno
         while (not self.ACK):
             self.send_data("W")
             p.waitForNotifications(0.5)
+            count += 1
+            if(count >= 7):
+                raise BTLEException("BEETLE NOT WAKING UP ZZZ")
         print(CR, "WAKEUP ACKED", SPACE, end = END)
         self.ACK = False
 
@@ -291,7 +295,7 @@ class BeetleThread(Thread):
         #if there is error in crc
         if self.error:
             if (self.err_count > 8):
-                raise BTLEException("continous error in packet")
+                raise BTLEException("CONTINUOUS FAIL CRC :(")
             #print(CR, "PACKET CORRUPTED NACK SENT", SPACE, end = END)
             #self.send_data("N")
             self.err_count = self.err_count+1
