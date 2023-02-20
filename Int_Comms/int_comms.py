@@ -11,36 +11,46 @@ from bluepy import btle
 from bluepy.btle import BTLEException, Peripheral
 from datetime import datetime
 from math import floor
+from queue import Queue
 
 #variables for beetle
 connection_threads = {}
 '''
-all beetle address - to label system after hardware guy finalise
-"B0:B1:13:2D:D4:AB"
-"B0:B1:13:2D:CD:A2" 
-"B0:B1:13:2D:D4:89"
-"B0:B1:13:2D:B3:08"
-"B0:B1:13:2D:D8:AC"
-"B0:B1:13:2D:D8:8C"
+all beetle address
+"B0:B1:13:2D:D4:AB" - motion sensor
+"B0:B1:13:2D:CD:A2" - gun
+"B0:B1:13:2D:D4:89" - vest
+"B0:B1:13:2D:B3:08" - motion sensor
+"B0:B1:13:2D:D8:AC" - vest
+"B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = [
-    "B0:B1:13:2D:D4:AB", 
+    #"B0:B1:13:2D:D4:89",
+    #"B0:B1:13:2D:D4:AB", 
+    #"B0:B1:13:2D:B3:08",
     "B0:B1:13:2D:D8:8C", 
-    "B0:B1:13:2D:D8:AC"
+    #"B0:B1:13:2D:D8:AC",
     #"B0:B1:13:2D:CD:A2"
-    #"B0:B1:13:2D:D4:89"
-    #"B0:B1:13:2D:B3:08"
     ]
 beetle_status = {}
 PACKET_LENGTH = 20
 
 #constants for print formatting
 CR = "\r"
-SPACE = "                                                    "
+SPACE = "            "
 END = ""
 
-#variables for data rate
+
+#variables for data rate and fragmentation statistics
 program_start_time = datetime.now()
+total_bytes_obtained = 0
+total_packet = 0
+total_packet_processed = 0
+
+#for external comms
+motion_msg = Queue(maxsize = 1269)
+vest_msg = Queue(maxsize = 1269)
+gun_msg = Queue(maxsize = 1269)
 
 # https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
@@ -53,17 +63,30 @@ class MyDelegate(btle.DefaultDelegate):
         self.packet_total = 0
 
     def handleNotification(self, cHandle, data):
-        print(connection_threads[self.connection_index].addr, " ", data)
+        #print(connection_threads[self.connection_index].addr, " ", data)
         
         #add received data to buffer
         self.buffer += clean_data(str(data))
         self.packet_total += 1
         
+        global total_packet
+        global total_packet_processed
+        global total_bytes_obtained
+        global program_start_time
+        total_packet += 1
+        
+        #for external comms
+        global vest_msg
+        global gun_msg
+        
         connection_threads[self.connection_index].total_data_received += utf8len(str(data))
-        connection_threads[self.connection_index].data_rate()
+        total_bytes_obtained += utf8len(str(data))
+        
+        #connection_threads[self.connection_index].data_rate()
         
         if(len(self.buffer) >= PACKET_LENGTH):
             self.packet_processed += 1
+            total_packet_processed += 1
             data_string = self.buffer[:PACKET_LENGTH]
             #print("data_string used: ", data_string)
             self.buffer = self.buffer[PACKET_LENGTH:]
@@ -72,7 +95,7 @@ class MyDelegate(btle.DefaultDelegate):
                 BEETLE_ID = data_string[0]
                 PACKET_ID = data_string[1]
                 DATA = clear_padding(data_string[2:-2])
-                print(CR, "data received from ", BEETLE_ID, SPACE, end = END)
+                print(CR, "data from ", BEETLE_ID, end = END)
                 
                 #(BEETLE_ID == self.ID) and 
                 
@@ -87,14 +110,15 @@ class MyDelegate(btle.DefaultDelegate):
                     print(CR, "Handshake reply received", SPACE, end = END)
                     connection_threads[self.connection_index].handshake_reply = True
                 elif ((PACKET_ID == '2') and (DATA == "WAKEUP")):
-                    print(CR, "Wakeup reply received", SPACE, end = END)
+                    #print(CR, "Wakeup reply received", SPACE, end = END)
                     connection_threads[self.connection_index].ACK = True
                 elif ((PACKET_ID == '3') and (DATA[1:] == "GUN")):
                     connection_threads[self.connection_index].send_ack = True
                     connection_threads[self.connection_index].rcv_seq_num = DATA[0]
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         connection_threads[self.connection_index].correct_seq_num = True
-                        print(CR, "Player has fired a shot", SPACE, end = END)
+                        gun_msg.put(floor(self.connection_index/3))
+                        #print(CR, "Player has fired a shot", SPACE, end = END)
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '4') and (DATA[1:] == "VEST")):
@@ -102,11 +126,12 @@ class MyDelegate(btle.DefaultDelegate):
                     connection_threads[self.connection_index].rcv_seq_num = DATA[0]
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         connection_threads[self.connection_index].correct_seq_num = True
-                        print(CR, "Player has been hit", SPACE, end = END)
+                        vest_msg.put(floor(self.connection_index/3))
+                        #print(CR, "Player has been hit", SPACE, end = END)
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '5')):
-                    print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
+                    #print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     connection_threads[self.connection_index].packet_0 = True
@@ -115,7 +140,7 @@ class MyDelegate(btle.DefaultDelegate):
                     connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
                     connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
                 elif ((PACKET_ID == '6')):
-                    print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
+                    #print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     connection_threads[self.connection_index].packet_1 = True
@@ -134,7 +159,14 @@ class MyDelegate(btle.DefaultDelegate):
                 #connection_threads[self.connection_index].packet_1 = False
                 time.sleep(0.01)
                 
-        print(CR, "packets received: ", self.packet_total, "complete packets: ", self.packet_processed, SPACE, end = END)
+        #fragmented_packet = self.packet_total- self.packet_processed
+        #print(" packets received: ", self.packet_total, "fragmented packets: ", fragmented_packet, SPACE, end = END)
+        
+        if(connection_threads[self.connection_index].handshake_completed == True):
+            kbps = (total_bytes_obtained * 8) / (1000 * (datetime.now() - program_start_time).total_seconds())
+            print(CR, SPACE, " Data rate(kbps):", round(kbps, 6), end = END)
+            fragmented_packet = total_packet - total_packet_processed
+            print(" Packets received: ", total_packet, "Fragmented packets: ", fragmented_packet, SPACE, SPACE, end = END)
 
 # data processing for incoming packets
 
@@ -192,6 +224,7 @@ class BeetleThread(Thread):
     last_sync_time = start_time
     current_time = start_time
     handshake_reply = False
+    handshake_completed = False
     ACK = False
     packet_0 = False
     packet_1 = False
@@ -205,20 +238,23 @@ class BeetleThread(Thread):
     rcv_seq_num = "x"
     err_count = 0
     current_data = {
-        "roll": "#",
-        "pitch": "#",
-        "yaw": "#",
-        "accX": "#",
-        "accY": "#",
-        "accZ": "#",
+        "id"    : "#",
+        "roll"  : "#",
+        "pitch" : "#",
+        "yaw"   : "#",
+        "accX"  : "#",
+        "accY"  : "#",
+        "accZ"  : "#",
     }
 
     def __init__(self, connection_index, addr):
         Thread.__init__(self)
         self.connection_index = connection_index
         self.addr = addr
+        self.current_data["id"] = str(floor(connection_index/3))
 
     def run(self):
+        global motion_msg
         self.establish_connection()
         time.sleep(2.0)
         try:
@@ -232,7 +268,7 @@ class BeetleThread(Thread):
                     self.wakeup(self.pheripheral)
 
                 # call data collecting comms
-                self.receive_data(self.pheripheral)
+                self.receive_data(self.pheripheral, motion_msg)
 
         except BTLEException:
             # enter when disconnected (power/distance both works yay)
@@ -249,7 +285,7 @@ class BeetleThread(Thread):
             count = 0
             # Send handshake packet
             self.send_data("H")
-            print(CR, "HANDSHAKE SENT", SPACE, end = END)
+            print("HANDSHAKE SENT")
             # Wait for Handshake packet from bluno, sent handshake req agn if not received after some time
             while(count < 5):
                 #print(self.connection_index, " waiting for handshake...")
@@ -259,7 +295,7 @@ class BeetleThread(Thread):
                 if(self.handshake_reply):
                     break
         # Send back 
-        print(CR, "HANDSHAKE RECEIVED, RETURN ACK", SPACE, end = END)
+        print("HANDSHAKE RECEIVED, RETURN ACK")
         self.send_data("A")
         self.handshake_reply = False
         count = 0
@@ -271,6 +307,7 @@ class BeetleThread(Thread):
                 self.send_data("A")
                 self.handshake_reply = False
             count += 1
+        self.handshake_completed = True
         time.sleep(2.0)
         self.start_time = datetime.now()
 
@@ -288,7 +325,7 @@ class BeetleThread(Thread):
         print(CR, "WAKEUP ACKED", SPACE, end = END)
         self.ACK = False
 
-    def receive_data(self, p):
+    def receive_data(self, p, queue):
         #data will expire and be unusable after some time
         if(self.current_time - self.packet_0_rcv_time).total_seconds() > 0.2:
             self.packet_0 = False
@@ -315,8 +352,9 @@ class BeetleThread(Thread):
             
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
         if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
-            print(CR, "Full motion sensor data received", SPACE, end = END)
-            #print(CR, self.current_data, SPACE, end = END)
+            #print(CR, "Full motion sensor data received", SPACE, end = END)
+            print(CR, self.current_data, SPACE, end = END)
+            queue.put(self.current_data)
             #each data can only be used once
             self.packet_0 = False
             self.packet_1 = False
@@ -336,7 +374,7 @@ class BeetleThread(Thread):
         #https://www.symmetryelectronics.com/blog/classic-bluetooth-vs-bluetooth-low-energy-a-round-by-round-battle/
         #1byte = 8bit
         kbps = (self.total_data_received * 8) / (1000 * (datetime.now() - self.start_time).total_seconds())
-        print(CR, "Data rate(kbps):", kbps, SPACE, end = END)
+        print(" Data rate(kbps):", round(kbps, 6), SPACE, end = END)
         
     def send_data(self, message):
         #print(message, " message sent to ", self.connection_index)
@@ -346,14 +384,14 @@ class BeetleThread(Thread):
     def establish_connection(self):
         while True:
             try:
-                print(CR, "CONNECTING TO ", self.addr, SPACE, end = END)
+                print("CONNECTING TO ", self.addr)
                 
                 self.pheripheral = Peripheral(self.addr)
                 beetle_status[self.connection_index] = self.pheripheral
                 self.service = self.pheripheral.getServices()
                 self.characteristic = self.pheripheral.getCharacteristics()
                 self.pheripheral.setDelegate(MyDelegate(self.connection_index))
-                print(CR, "CONNECTED TO ", self.addr, SPACE, end = END)
+                print("CONNECTED TO ", self.addr)
                 
                 break
             except BTLEException:

@@ -1,5 +1,5 @@
 #include <CRCx.h>
-#define BEETLE_ID '0' // change based on beetle
+#define BEETLE_ID '2' // change based on beetle
 #define ACK_ID '0'
 #define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
@@ -54,7 +54,7 @@ bool data_ack       = false;
 bool data_sent      = false;
 unsigned long TIMEOUT = 1000;
 unsigned long sent_time;
-volatile int activation_count = 3;
+volatile int activation_count = 3000;
 
 void setup() {
   Serial.begin(115200);
@@ -279,7 +279,7 @@ void loop() {
         if (handshake) {
           handshake_ack = true;
           handshake = false;
-          delay(100);
+          delay(2000);
         }
         /*
           if(handshake_ack) {
