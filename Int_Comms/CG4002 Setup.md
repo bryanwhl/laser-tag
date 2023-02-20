@@ -68,10 +68,3 @@ trust B0:B1:13:2D:CD:A2
 connect address
 
 ^^ manually restart bluetooth if does not work ^^
-
-learning a new language
-1 to 10: https://miro.com/app/board/uXjVPskU2Hk=/?share_link_id=809743276547
-11 to 20: https://miro.com/app/board/uXjVPsrt3K8=/?share_link_id=802966869213
-21 to 30: https://miro.com/app/board/uXjVPsrt3LY=/?share_link_id=153338396928
-31 to 40: https://miro.com/app/board/uXjVPsrt3Lo=/?share_link_id=736948300080
-41 to 50: https://miro.com/app/board/uXjVPsrt3UA=/?share_link_id=280466256000

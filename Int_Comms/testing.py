@@ -8,8 +8,17 @@ from datetime import datetime
 from math import floor
 
 connection_threads = {}
-beetle_addresses = ["B0:B1:13:2D:CD:A2", "B0:B1:13:2D:D4:89"]
+'''
+"B0:B1:13:2D:D4:AB"
+"B0:B1:13:2D:CD:A2" 
+"B0:B1:13:2D:D4:89"
+"B0:B1:13:2D:B3:08"
+"B0:B1:13:2D:D8:AC"
+"B0:B1:13:2D:D8:8C"
+'''
+beetle_addresses = ["B0:B1:13:2D:D4:AB", "B0:B1:13:2D:D4:89", "B0:B1:13:2D:D8:AC"]
 beetle_status = {}
+PACKET_LENGTH = 20
 
 # https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
@@ -17,54 +26,66 @@ class MyDelegate(btle.DefaultDelegate):
         btle.DefaultDelegate.__init__(self)
         self.connection_index = connection_index
         self.ID = str(connection_index)
+        self.buffer = ""
 
     def handleNotification(self, cHandle, data):
-        print(self.connection_index, " ", data)
-        data_string = clean_data(str(data))
-        if crc_check(data_string):
-            BEETLE_ID = data_string[0]
-            PACKET_ID = data_string[1]
-            DATA = clear_padding(data_string[2:-2])
-            print("data received from ", BEETLE_ID)
-            connection_threads[self.connection_index].last_sync_time = datetime.now()
-            connection_threads[self.connection_index].total_data_received += utf8len(str(data))
-            connection_threads[self.connection_index].data_rate()
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '0') and (DATA == "ACK")):
-                print("ACK received")
-                connection_threads[self.connection_index].ACK = True
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '1') and (DATA == "HANDSHAKE")):
-                print("Handshake reply received")
-                connection_threads[self.connection_index].handshake_status = True
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '2') and (DATA == "WAKEUP")):
-                print("Wakeup reply received")
-                connection_threads[self.connection_index].ACK = True
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '3') and (DATA == "GUN")):
-                print("Player has fired a shot")
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '4') and (DATA == "VEST")):
-                print("Player has been hit")
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '5')):
-                print("Motion sensor data packet 1 obtained")
-                extracted_data = unpack_data(DATA)
-                #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
-                connection_threads[self.connection_index].packet_0 = True
-                connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
-                connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
-                connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
-            if ((BEETLE_ID == self.ID) and (PACKET_ID == '6')):
-                print("Motion sensor data packet 2 obtained")
-                extracted_data = unpack_data(DATA)
-                #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
-                connection_threads[self.connection_index].packet_1 = True
-                connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
-                connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
-                connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2]             
-        else:
-            print("ERR in CRC")
-            #reset all boolean when error in packet
-            connection_threads[self.connection_index].error = True
-            #connection_threads[self.connection_index].packet_0 = False
-            #connection_threads[self.connection_index].packet_1 = False
-            time.sleep(0.01)
+        print(connection_threads[self.connection_index].addr, " ", data)
+        print("\r                                                       \r")
+        self.buffer += clean_data(str(data))
+        
+        connection_threads[self.connection_index].total_data_received += utf8len(str(data))
+        connection_threads[self.connection_index].data_rate()
+        
+        if(len(self.buffer) >= 20):
+            data_string = self.buffer[:PACKET_LENGTH]
+            #print("data_string used: ", data_string)
+            self.buffer = self.buffer[PACKET_LENGTH:]
+            if crc_check(data_string):
+                BEETLE_ID = data_string[0]
+                PACKET_ID = data_string[1]
+                DATA = clear_padding(data_string[2:-2])
+                print("\rdata received from ", BEETLE_ID)
+                print("\r                                                       \r")
+                #(BEETLE_ID == self.ID) and 
+                connection_threads[self.connection_index].last_sync_time = datetime.now()
+                if ((PACKET_ID == '0') and (DATA == "ACK")):
+                    print("\rACK received")
+                    connection_threads[self.connection_index].ACK = True
+                elif ((PACKET_ID == '1') and (DATA == "HANDSHAKE")):
+                    print("\rHandshake reply received")
+                    connection_threads[self.connection_index].handshake_status = True
+                elif ((PACKET_ID == '2') and (DATA == "WAKEUP")):
+                    print("\rWakeup reply received")
+                    connection_threads[self.connection_index].ACK = True
+                elif ((PACKET_ID == '3') and (DATA == "GUN")):
+                    print("\rPlayer has fired a shot")
+                elif ((PACKET_ID == '4') and (DATA == "VEST")):
+                    print("\rPlayer has been hit")
+                elif ((PACKET_ID == '5')):
+                    print("\rMotion sensor data packet 1 obtained")
+                    extracted_data = unpack_data(DATA)
+                    #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
+                    connection_threads[self.connection_index].packet_0 = True
+                    connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
+                    connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
+                    connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
+                elif ((PACKET_ID == '6')):
+                    print("Motion sensor data packet 2 obtained", end = "\r")
+                    extracted_data = unpack_data(DATA)
+                    #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
+                    connection_threads[self.connection_index].packet_1 = True
+                    connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
+                    connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
+                    connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2] 
+                    
+                print("\r                                                       \r")            
+            else:
+                print("\rERR in CRC")
+                #reset all boolean when error in packet
+                connection_threads[self.connection_index].error = True
+                #connection_threads[self.connection_index].packet_0 = False
+                #connection_threads[self.connection_index].packet_1 = False
+                time.sleep(0.01)
 
 # data processing for incoming packets
 
@@ -149,7 +170,7 @@ class BeetleThread(Thread):
         self.characteristic = peripheral.getCharacteristics()
 
     def run(self):
-        
+        time.sleep(12.0)
         try:
             # handshake at start of thread
             self.handshake(self.connection)
@@ -179,25 +200,26 @@ class BeetleThread(Thread):
             count = 0
             # Send handshake packet
             self.send_data("H")
-            print("HANDSHAKE SENT")
+            print("\rHANDSHAKE SENT")
             # Wait for Handshake packet from bluno
             while(count < 5):
-                print(self.connection_index, " waiting for handshake...")
-                p.waitForNotifications(2)
+                #print(self.connection_index, " waiting for handshake...")
+                p.waitForNotifications(4)
                 time.sleep(0.1)
                 count += 1
-        # Send back ACK
-        print("HANDSHAKE RECIEVED, RETURN ACK")
+        # Send back 
+        print("\rHANDSHAKE RECEIVED, RETURN ACK")
         self.send_data("A")
+        time.sleep(2.0)
 
     def wakeup(self, p):
-        # Send handshake packet
-        print("WAKE UP CALL")
+        # Send handshake pac
+        print("\rWAKE UP CALL")
         self.send_data("W")
         # Wait for ack packet from bluno
         while (not self.ACK):
-            p.waitForNotifications(2)
-        print("WAKEUP ACKED")
+            p.waitForNotifications
+        print("\rWAKEUP ACKED")
         self.ACK = False
 
     def receive_data(self, p):
@@ -210,31 +232,30 @@ class BeetleThread(Thread):
             self.err_count = self.err_count+1
             self.error = False
         if self.packet_0 & self.packet_1:
-            print("Full motion sensor data received")
-            print(self.current_data)
+            print("\rFull motion sensor data received")
+            #print("\r", self.current_data)
             self.packet_0 = False
             self.packet_1 = False
             
     def data_rate(self):
-        print("Data rate:", self.total_data_received / (datetime.now() - self.start_time).total_seconds() )
+        print("\rData rate:", self.total_data_received / (datetime.now() - self.start_time).total_seconds() )
         
     def send_data(self, message):
-        print(message, " message sent to ", self.connection_index)
+        #print(message, " message sent to ", self.connection_index)
         for characteristic in self.characteristic:
                 characteristic.write(bytes(message, "UTF-8"), withResponse=False)
         
 
 
 def establish_connection():
-    print("Connecting to bluno ...")
+    print("\rConnecting to bluno ...")
     while True:
         try:
             for i in range(len(beetle_addresses)):
+                print("connecting to ", beetle_addresses[i])
                 p = Peripheral(beetle_addresses[i])
                 beetle_status[i] = p
-                # print(beetle_status[i])
                 t = BeetleThread(i, beetle_addresses[i], False, p)
-                # start thread
                 t.start()
                 connection_threads[i] = t
         except BTLEException:
@@ -247,12 +268,12 @@ def establish_connection():
 
 
 def reconnection(addr, index):
-    print("reconnecting bluno")
+    print("\rreconnecting bluno")
     while True:
         try:
-            print("reconnecting to %s" % (addr))
+            print("\rreconnecting to %s" % (addr))
             p = btle.Peripheral(addr)
-            print("re-connected to %s" % (addr))
+            print("\rre-connected to %s" % (addr))
             beetle_status[index] = p
             t = BeetleThread(index, addr, True, p)
             # start thread
