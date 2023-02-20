@@ -219,20 +219,20 @@ void loop() {
     display.clearDisplay();
     display.setCursor(30, 30);
     display.println("Bang!");
-    display.display();
+    display.display(); //*/
     irsend.sendNEC(0x111111, 32);
-    //irsend.sendNEC(0x1111,0x22,true); //*/
+    //irsend.sendNEC(0x1111,0x22,true);
     digitalWrite(13, HIGH);
     bulletCount -= 1;
     if (bulletCount <= 0) {
       bulletCount = 6;
     }
-    delay(500);
+    delay(400);
     /*
     display.clearDisplay();
     display.setCursor(30, 30);
     display.println(bulletCount);
-    display.display();
-    digitalWrite(13, LOW); //*/
+    display.display(); //*/
+    digitalWrite(13, LOW); 
   }
 }

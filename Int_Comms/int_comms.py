@@ -25,10 +25,10 @@ all beetle address
 "B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = [
-    #"B0:B1:13:2D:D4:89",
     #"B0:B1:13:2D:D4:AB", 
+    "B0:B1:13:2D:D8:8C",
+    "B0:B1:13:2D:D4:89",
     #"B0:B1:13:2D:B3:08",
-    "B0:B1:13:2D:D8:8C", 
     #"B0:B1:13:2D:D8:AC",
     #"B0:B1:13:2D:CD:A2"
     ]
@@ -118,7 +118,7 @@ class MyDelegate(btle.DefaultDelegate):
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         connection_threads[self.connection_index].correct_seq_num = True
                         gun_msg.put(floor(self.connection_index/3))
-                        #print(CR, "Player has fired a shot", SPACE, end = END)
+                        print(CR, "Player has fired a shot", SPACE)
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '4') and (DATA[1:] == "VEST")):
@@ -127,7 +127,7 @@ class MyDelegate(btle.DefaultDelegate):
                     if(DATA[0] == str(connection_threads[self.connection_index].seq_num)):
                         connection_threads[self.connection_index].correct_seq_num = True
                         vest_msg.put(floor(self.connection_index/3))
-                        #print(CR, "Player has been hit", SPACE, end = END)
+                        print(CR, "Player has been hit", SPACE)
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '5')):
@@ -162,11 +162,13 @@ class MyDelegate(btle.DefaultDelegate):
         #fragmented_packet = self.packet_total- self.packet_processed
         #print(" packets received: ", self.packet_total, "fragmented packets: ", fragmented_packet, SPACE, end = END)
         
+        '''
         if(connection_threads[self.connection_index].handshake_completed == True):
             kbps = (total_bytes_obtained * 8) / (1000 * (datetime.now() - program_start_time).total_seconds())
             print(CR, SPACE, " Data rate(kbps):", round(kbps, 6), end = END)
             fragmented_packet = total_packet - total_packet_processed
             print(" Packets received: ", total_packet, "Fragmented packets: ", fragmented_packet, SPACE, SPACE, end = END)
+        '''
 
 # data processing for incoming packets
 
