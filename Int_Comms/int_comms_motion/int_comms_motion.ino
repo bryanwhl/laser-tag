@@ -2,28 +2,38 @@
 #define BEETLE_ID '0' // change based on beetle
 #define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
-#define GUN_ID '3'
-#define VEST_ID '4'
 #define MOTION_ID '5'
 #define MOTION_ID_P1 '5'
 #define MOTION_ID_P2 '6'
-// uncomment the system that bluno will be used in
-//#define isGUN
-//#define isVEST
-#define isMOTION
+
+#include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"
+#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+#include "Wire.h"
+#endif
+
+MPU6050 mpu;
+// MPU control/status vars
+bool dmpReady = false;  // set true if DMP init was successful
+uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
+uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
+uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+
+// orientation/motion vars
+Quaternion q;           // [w, x, y, z]         quaternion container
+VectorInt16 aa;         // [x, y, z]            accel sensor measurements
+VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
+VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
+VectorFloat gravity;    // [x, y, z]            gravity vector
+float euler[3];         // [psi, theta, phi]    Euler angle container
+float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 //constants
 char HANDSHAKE[]  = "HANDSHAKE";
 char ACK[]        = "ACK";
 char WAKEUP[]     = "WAKEUP";
-char GUN[]        = "GUN";
-char ZEROGUN[]    = "0GUN";
-char ONEGUN[]     = "1GUN";
-char VEST[]       = "VEST";
-char ZEROVEST[]   = "0VEST";
-char ONEVEST[]    = "1VEST";
-char ONE[]        = "1";
-char ZERO[]       = "0";
 int PACKET_SIZE   = 20;
 
 
@@ -31,17 +41,6 @@ int PACKET_SIZE   = 20;
 uint8_t data[16];
 uint8_t packet[20];
 float data_set[6];
-int seq_num = 0;
-
-//dummy to test
-int start = 0;
-float roll[] = {222.141, 222.30, 222.12, 221.88, 221.73};    //3byte
-float pitch[] = {273.053, 272.90, 272.91, 272.93, 272.95};   //3byte
-float yaw[] = {370.274, -370.24, -370.29, -370.37, -370.49}; //3byte
-float AccX[] = { -0.482, 0.47, 0.46, 0.46, 0.46};            //2byte
-float AccY[] = { -0.153, -0.13, -0.16, -0.20, -0.22};        //2byte
-float AccZ[] = {0.9231, 2, 3, 4, 5};                         //2byte
-//1byte for signs of all 6 variable
 
 //boolean checks for logic program
 //check that data transfer has begin
@@ -49,23 +48,56 @@ float AccZ[] = {0.9231, 2, 3, 4, 5};                         //2byte
 bool error          = false;
 bool handshake      = false;
 bool handshake_ack  = false;
-bool data_ack       = false;
-bool data_sent      = false;
 unsigned long TIMEOUT = 1000;
 unsigned long sent_time;
-volatile int activation_count = 3;
 
 void setup() {
   Serial.begin(115200);
+#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+  Wire.begin();
+  Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+#elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+  Fastwire::setup(400, true);
+#endif
+
+  while (!Serial) {
+  }
+
+  mpu.initialize();
+  while (!mpu.testConnection()) {
+    mpu.initialize();
+    delay(10);
+  }
+  devStatus = mpu.dmpInitialize();
+  // supply your own gyro offsets here, scaled for min sensitivity
+  mpu.setXGyroOffset(64);
+  mpu.setYGyroOffset(-30);
+  mpu.setZGyroOffset(-1);
+  mpu.setZAccelOffset(2402);
+  
+  if (devStatus == 0) {
+    // Calibration Time: generate offsets and calibrate our MPU6050
+    mpu.CalibrateAccel(6);
+    mpu.CalibrateGyro(6);
+    // turn on the DMP, now that it's ready
+    mpu.setDMPEnabled(true);
+    // set our DMP Ready flag so the main loop() function knows it's okay to use it
+    dmpReady = true;
+
+    // get expected DMP packet size for later comparison
+    packetSize = mpu.dmpGetFIFOPacketSize();
+  } else {
+    // ERROR!
+    // 1 = initial memory load failed
+    // 2 = DMP configuration updates failed
+    // (if it's going to break, usually the code will be 1)
+    setup();
+  }
+
   sent_time = millis();
   error = false;
   handshake = false;
   handshake_ack = false;
-  data_ack = false;
-  data_sent = false;
-  seq_num = 0;
-  while (!Serial) {
-  }
   delay(100);
 }
 
@@ -142,37 +174,6 @@ void packet_overhead(char packet_id) {
   }//*/
 }
 
-//function to send 1 dataset of motion sensor values byte version
-void send_data_bytes(float data_set[]) {
-  unsigned int x;
-  uint8_t xlow ;
-  uint8_t xhigh ;
-  uint8_t signs = 0;
-  //roll, pitch and yaw
-  for (int i = 0; i < 3; ++i) {
-    x = abs( (int)data_set[i] );
-    xlow = x & 0xff;
-    xhigh  = (x >> 8);
-    data[0 + i * 3] = xlow;
-    data[1 + i * 3] = xhigh;
-    data[2 + i * 3] = abs((int)(data_set[i] * 100) % 100);
-    if (data_set[i] < 0) {
-      signs + 1;
-    }
-    signs *= 2;
-  }
-  //x, y, z
-  for (int i = 0; i < 3; ++i) {
-    data[9 + i * 2] = abs( (int)data_set[i + 3] );
-    data[10 + i * 2] = abs((int)(data_set[i + 3] * 100) % 100) ;
-  }
-
-  packet_overhead(MOTION_ID);
-  Serial.write((uint8_t *)(packet), sizeof(packet));
-  memset(data, 0, 16);
-  delay(80);
-}
-
 //function to send 1 dataset of motion sensor values string version
 void send_data_string(float data_set[]) {
   int signs;
@@ -234,19 +235,6 @@ void send_data_string(float data_set[]) {
 
 void loop() {
 
-#ifdef isMOTION
-  //* This is for dummy data
-  start = 0;
-  memset(data_set, 0, 6);
-  data_set[0] = roll[start];
-  data_set[1] = pitch[start];
-  data_set[2] = yaw[start];
-  data_set[3] = AccX[start];
-  data_set[4] = AccY[start];
-  data_set[5] = AccZ[start];
-  //*/
-#endif
-
   //if dont recieve ACK from laptop, send the next set. Not applicable for motion sensor
   if (millis() - sent_time >= TIMEOUT) {
     error = true;
@@ -255,39 +243,12 @@ void loop() {
   if (Serial.available()) {
     byte cmd = Serial.read();
     switch (cmd) {
-      case '0':
-        if (seq_num == 0) {
-          data_ack = true;
-          data_sent = false;
-          error = false;
-          activation_count -= 1;
-          seq_num = 1;
-        }
-        break;
-      case '1':
-        if (seq_num == 1) {
-          data_ack = true;
-          data_sent = false;
-          error = false;
-          activation_count -= 1;
-          seq_num = 0;
-        }
-        break;
       case 'A': //Received ACK
-        data_ack = true;
         if (handshake) {
           handshake_ack = true;
           handshake = false;
           delay(100);
         }
-        /*
-          if(handshake_ack) {
-          data_sent = false;
-          error = false;
-          activation_count -= 1;
-          if(seq_num == 0) seq_num = 1;
-          else seq_num = 0;
-          }//*/
         break;
       case 'H'://Received Handshake request
         data_padding(HANDSHAKE);
@@ -300,12 +261,6 @@ void loop() {
         //Reset all boolean to default since handshake req is only when connecting/reconnecting
         error = false;
         handshake_ack = false;
-        data_ack = false;
-        data_sent = false;
-        seq_num = 0;
-        break;
-      case 'N': // Receive Nack
-        error = true;
         break;
       case 'W' ://Received Wakeup Call
         data_padding(WAKEUP);
@@ -318,7 +273,7 @@ void loop() {
   }
 
   delay(30);
-  if(handshake && !handshake_ack && error) {
+  if (handshake && !handshake_ack && error) {
     data_padding(HANDSHAKE);
     packet_overhead(HANDSHAKE_ID);
     Serial.write((char*)packet, PACKET_SIZE);
@@ -326,68 +281,31 @@ void loop() {
     error = false;
   }
 
-  //spam sending of data for motion sensor
-#ifdef isMOTION
-  if (handshake_ack) {
-    send_data_string(data_set);
+  if (!dmpReady) return;
+  // read a packet from FIFO
+  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet
 
-    //handshake_ack = false;
-    //handshake = false;
+    // display Euler angles in degrees
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    data_set[0] = ypr[2] * 180 / M_PI;
+    data_set[1] = ypr[1] * 180 / M_PI;
+    data_set[2] = ypr[0] * 180 / M_PI;
+
+    // display real acceleration, adjusted to remove gravity
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetAccel(&aa, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+    data_set[3] = aaReal.x;
+    data_set[4] = aaReal.y;
+    data_set[5] = aaReal.z;
+
+    //spam sending of data for motion sensor
+    if (handshake_ack) {
+      send_data_string(data_set);
+      memset(data_set, 0, 6);
+    }
   }
-#endif
-
-  //stop and wait for gun and vest
-#ifndef isMOTION
-  if (data_ack && !data_sent && handshake_ack && activation_count > 0) {
-#ifdef isGUN
-    if (seq_num == 0) {
-      data_padding(ZEROGUN);
-    } else if (seq_num == 1) {
-      data_padding(ONEGUN);
-    }
-    packet_overhead(GUN_ID);
-    Serial.write((char*)packet, PACKET_SIZE);
-#endif
-
-#ifdef isVEST
-    if (seq_num == 0) {
-      data_padding(ZEROVEST);
-    } else if (seq_num == 1) {
-      data_padding(ONEVEST);
-    }
-    packet_overhead(VEST_ID);
-    Serial.write((char*)packet, PACKET_SIZE);
-#endif
-    data_sent = true;
-    data_ack = false;
-    sent_time = millis();
-    error = false;
-  }
-
-  if (error && data_sent) {
-#ifdef isGUN
-    if (seq_num == 0) {
-      data_padding(ZEROGUN);
-    } else if (seq_num == 1) {
-      data_padding(ONEGUN);
-    }
-    packet_overhead(GUN_ID);
-    Serial.write((char*)packet, PACKET_SIZE);
-#endif
-
-#ifdef isVEST
-    if (seq_num == 0) {
-      data_padding(ZEROVEST);
-    } else if (seq_num == 1) {
-      data_padding(ONEVEST);
-    }
-    packet_overhead(VEST_ID);
-    Serial.write((char*)packet, PACKET_SIZE);
-#endif
-
-    data_ack = false;
-    sent_time = millis();
-    error = false;
-  }
-#endif
 }
