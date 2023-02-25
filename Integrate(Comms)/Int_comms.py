@@ -55,6 +55,7 @@ gun_msg = Queue(maxsize = 1269)
 class ExternalComms(Thread):
     
     def __init__(self):
+        Thread.__init__(self)
         print("connecting to server...")
         self.clientSocket = socket(AF_INET, SOCK_STREAM)
         connect_to_server(self.clientSocket)
