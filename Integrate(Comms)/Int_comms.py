@@ -1,5 +1,7 @@
 import sys
 import time
+import socket
+from socket import *
 from threading import Thread
 import crc8
 from bluepy import btle
@@ -8,6 +10,7 @@ from datetime import datetime
 from math import floor
 from queue import Queue
 from DataClient import send_data_to_server
+from DataClient import connect_to_server
 
 
 #variables for beetle
@@ -22,7 +25,7 @@ all beetle address
 "B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = [
-    #"B0:B1:13:2D:D4:AB", 
+    "B0:B1:13:2D:D4:AB", 
     #"B0:B1:13:2D:D8:8C",
     #"B0:B1:13:2D:D4:89",
     #"B0:B1:13:2D:B3:08",
@@ -51,25 +54,30 @@ gun_msg = Queue(maxsize = 1269)
 
 class ExternalComms(Thread):
     
-    def run():
+    def __init__(self):
+        print("connecting to server...")
+        self.clientSocket = socket(AF_INET, SOCK_STREAM)
+        connect_to_server(self.clientSocket)
+        print("connected to server...")
+    
+    def run(self):
         global vest_msg
         global gun_msg
         global motion_msg
         while True:
             try:
                 if not vest_msg.empty():
-                    send_data_to_server("vest " + str(vest_msg.get()))
+                    send_data_to_server(self.clientSocket, "vest " + str(vest_msg.get()))
                     time.sleep(0.05)
                 if not gun_msg.empty():
-                    send_data_to_server("gun " + str(gun_msg.get()))
+                    send_data_to_server(self.clientSocket, "gun " + str(gun_msg.get()))
                     time.sleep(0.05)
                 if not motion_msg.empty():
-                    send_data_to_server("motion " + str(motion_msg.get()))
+                    send_data_to_server(self.clientSocket, "motion " + str(motion_msg.get()))
                     time.sleep(0.05)
             except KeyboardInterrupt:
                 sys.exit(1)
-            
-            
+
 
 # https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
@@ -444,8 +452,13 @@ def main():
             t = BeetleThread(i, beetle_addresses[i])
             t.start()
             connection_threads[i] = t
+        x = ExternalComms()
+        x.start()
+        
         for i in range(len(beetle_addresses)):
             connection_threads[i].join()
+        x.join()
+        
     except KeyboardInterrupt:
         print("Closing connections")
 

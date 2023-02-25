@@ -13,11 +13,20 @@ key = "thisismysecretky"
 key = bytes(str(key), encoding="utf8") 
 
 # Create client socket and connect to server
-clientSocket = socket(AF_INET, SOCK_STREAM)
-clientSocket.connect((HOST, PORT))
+def connect_to_server(clientSocket):
+    counter = 0
+    while True:
+        try:
+            counter += 1
+            clientSocket = socket(AF_INET, SOCK_STREAM)
+            clientSocket.connect((HOST, PORT))
+            break
+        except ConnectionRefusedError:
+            print('\r' + "cannot connect ", counter, end = "")
+            time.sleep(1)
 
 # Send message to server
-def send_data_to_server(data):
+def send_data_to_server(clientSocket, data):
     try:
         data_bytes = data.encode()
         # Encrypt data
