@@ -9,9 +9,22 @@ from bluepy.btle import BTLEException, Peripheral
 from datetime import datetime
 from math import floor
 from queue import Queue
-from DataClient import send_data_to_server
-from DataClient import connect_to_server
+from signal import signal, SIGPIPE, SIG_DFL  
+signal(SIGPIPE,SIG_DFL) 
 
+from socket import *
+import time
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from base64 import b64encode
+
+# Init connection settings
+HOST = "localhost"
+PORT = 8888
+
+# Init Encryption settings
+key = "thisismysecretky"
+key = bytes(str(key), encoding="utf8") 
 
 #variables for beetle
 connection_threads = {}
@@ -56,28 +69,52 @@ class ExternalComms(Thread):
     
     def __init__(self):
         Thread.__init__(self)
-        print("connecting to server...")
-        self.clientSocket = socket(AF_INET, SOCK_STREAM)
-        connect_to_server(self.clientSocket)
-        print("connected to server...")
     
     def run(self):
         global vest_msg
         global gun_msg
         global motion_msg
-        while True:
-            try:
+        print("connecting to server...")
+        self.clientSocket = socket(AF_INET, SOCK_STREAM)
+        # Create client socket and connect to server
+        self.clientSocket = socket(AF_INET, SOCK_STREAM)
+        self.clientSocket.connect((HOST, PORT))
+        print("connected to server...")
+        try:
+            while True:
                 if not vest_msg.empty():
-                    send_data_to_server(self.clientSocket, "vest " + str(vest_msg.get()))
+                    data = "vest " + str(vest_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
                     time.sleep(0.05)
+                    
                 if not gun_msg.empty():
-                    send_data_to_server(self.clientSocket, "gun " + str(gun_msg.get()))
+                    data = "gun " + str(gun_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
                     time.sleep(0.05)
+                    
                 if not motion_msg.empty():
-                    send_data_to_server(self.clientSocket, "motion " + str(motion_msg.get()))
+                    data = str(motion_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
                     time.sleep(0.05)
-            except KeyboardInterrupt:
-                sys.exit(1)
+        except KeyboardInterrupt:
+            print("Closing Client Socket")
+            self.clientSocket.close() 
+            sys.exit(1)
 
 
 # https://careerkarma.com/blog/python-string-to-int/
