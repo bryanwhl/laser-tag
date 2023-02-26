@@ -1,10 +1,7 @@
-'''
-Links referenced:
-https://ianharvey.github.io/bluepy-doc/
-https://www.geeksforgeeks.org/python-output-formatting/
-'''
 import sys
 import time
+import socket
+from socket import *
 from threading import Thread
 import crc8
 from bluepy import btle
@@ -12,6 +9,22 @@ from bluepy.btle import BTLEException, Peripheral
 from datetime import datetime
 from math import floor
 from queue import Queue
+from signal import signal, SIGPIPE, SIG_DFL  
+signal(SIGPIPE,SIG_DFL) 
+
+from socket import *
+import time
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from base64 import b64encode
+
+# Init connection settings
+HOST = "localhost"
+PORT = 8888
+
+# Init Encryption settings
+key = "thisismysecretky"
+key = bytes(str(key), encoding="utf8") 
 
 #variables for beetle
 connection_threads = {}
@@ -25,7 +38,7 @@ all beetle address
 "B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = [
-    #"B0:B1:13:2D:D4:AB", 
+    "B0:B1:13:2D:D4:AB", 
     #"B0:B1:13:2D:D8:8C",
     #"B0:B1:13:2D:D4:89",
     #"B0:B1:13:2D:B3:08",
@@ -51,6 +64,58 @@ total_packet_processed = 0
 motion_msg = Queue(maxsize = 1269)
 vest_msg = Queue(maxsize = 1269)
 gun_msg = Queue(maxsize = 1269)
+
+class ExternalComms(Thread):
+    
+    def __init__(self):
+        Thread.__init__(self)
+    
+    def run(self):
+        global vest_msg
+        global gun_msg
+        global motion_msg
+        print("connecting to server...")
+        self.clientSocket = socket(AF_INET, SOCK_STREAM)
+        # Create client socket and connect to server
+        self.clientSocket = socket(AF_INET, SOCK_STREAM)
+        self.clientSocket.connect((HOST, PORT))
+        print("connected to server...")
+        try:
+            while True:
+                if not vest_msg.empty():
+                    data = "vest " + str(vest_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
+                    time.sleep(0.05)
+                    
+                if not gun_msg.empty():
+                    data = "gun " + str(gun_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
+                    time.sleep(0.05)
+                    
+                if not motion_msg.empty():
+                    data = str(motion_msg.get())
+                    data_bytes = data.encode()
+                    # Encrypt data
+                    cipher = AES.new(key, AES.MODE_CBC)
+                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
+                    encrypted_data_b64 = b64encode(encrypted_data)
+                    self.clientSocket.send(encrypted_data_b64)
+                    time.sleep(0.05)
+        except KeyboardInterrupt:
+            print("Closing Client Socket")
+            self.clientSocket.close() 
+            sys.exit(1)
+
 
 # https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
@@ -281,6 +346,11 @@ class BeetleThread(Thread):
             reconnect.start()
             # end current thread to reset everything as new one will be started after reconnection
             sys.exit(1)
+        
+        except KeyboardInterrupt:
+            self.pheripheral.disconnect()
+            sys.exit(1)
+            
 
     def handshake(self, p):
         while (not self.handshake_reply):
@@ -415,43 +485,20 @@ def reconnection(addr, index):
             continue
 
 def main():
-    for i in range(len(beetle_addresses)):
-        t = BeetleThread(i, beetle_addresses[i])
-        t.start()
-        connection_threads[i] = t
+    try:
+        for i in range(len(beetle_addresses)):
+            t = BeetleThread(i, beetle_addresses[i])
+            t.start()
+            connection_threads[i] = t
+        x = ExternalComms()
+        x.start()
+        
+        for i in range(len(beetle_addresses)):
+            connection_threads[i].join()
+        x.join()
+        
+    except KeyboardInterrupt:
+        print("Closing connections")
 
 if __name__ == "__main__":
     main()
-
-        
-'''
-Protocols:
-handshake at start for all 6
-
-gun & vest:
-stop & wait for now
-use timer to send wakeup call?
-arduino side to retransmit after 1s of waiting for ack (ack or packet is lost)
-packet will have sequence number alternating between 1 and 0 (prevent duplicate packet if ack is lost)
-laptop send ack if packet received is correct do nth if packet is corrupted, beetle will retransmit after timeout
-
-motion sensor:
-UDP (standardised data rate)
-Just keep sending from arduino periodically at ard every 100ms(??)
-PC will drop corrupted packet 
-No action if packet lost
-packet stiching:
-    combine 2 data packet if time received is close enough
-    e.g. part 2 of data set 1 and part 1 of data set 2
-each packet data can only be used once 
- to prevent situation such as: a.1+a.2, a.2+b.1, b.1+b.2 => middle dataset is some sort of duplicate
-
-Points to note:
-use CRC
-packet fragmentation for large packet(only applicable for sensor)
-20byte for all packet. pad small packet and fragment big packet
-no timer for disconnection
-sent wakeup call every 60s of inactivity(no data received) to all beetle
-if beetle is disconnected or smth, thread will close and attempt to reconnect
-
-'''
