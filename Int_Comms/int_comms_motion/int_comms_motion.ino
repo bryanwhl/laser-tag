@@ -60,9 +60,6 @@ void setup() {
   Fastwire::setup(400, true);
 #endif
 
-  while (!Serial) {
-  }
-
   mpu.initialize();
   while (!mpu.testConnection()) {
     mpu.initialize();

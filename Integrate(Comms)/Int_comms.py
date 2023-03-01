@@ -39,7 +39,7 @@ all beetle address
 '''
 beetle_addresses = [
     "B0:B1:13:2D:D4:AB", 
-    #"B0:B1:13:2D:D8:8C",
+    "B0:B1:13:2D:D8:8C",
     #"B0:B1:13:2D:D4:89",
     #"B0:B1:13:2D:B3:08",
     #"B0:B1:13:2D:D8:AC",
