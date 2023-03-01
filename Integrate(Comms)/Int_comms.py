@@ -39,11 +39,11 @@ all beetle address
 '''
 beetle_addresses = [
     "B0:B1:13:2D:D4:AB", 
-    #"B0:B1:13:2D:D8:8C",
-    #"B0:B1:13:2D:D4:89",
-    #"B0:B1:13:2D:B3:08",
-    #"B0:B1:13:2D:D8:AC",
-    #"B0:B1:13:2D:CD:A2"
+    "B0:B1:13:2D:D8:8C",
+    "B0:B1:13:2D:D4:89",
+    "B0:B1:13:2D:B3:08",
+    "B0:B1:13:2D:D8:AC",
+    "B0:B1:13:2D:CD:A2"
     ]
 beetle_status = {}
 PACKET_LENGTH = 20
@@ -199,20 +199,22 @@ class MyDelegate(btle.DefaultDelegate):
                     #print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
-                    connection_threads[self.connection_index].packet_0 = True
-                    connection_threads[self.connection_index].packet_0_rcv_time = datetime.now()
-                    connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
-                    connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
-                    connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
+                    if (connection_threads[self.connection_index].handshake_completed):
+                        connection_threads[self.connection_index].packet_0 = True
+                        connection_threads[self.connection_index].packet_0_rcv_time = datetime.now()
+                        connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
+                        connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
+                        connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
                 elif ((PACKET_ID == '6')):
                     #print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
-                    connection_threads[self.connection_index].packet_1 = True
-                    connection_threads[self.connection_index].packet_1_rcv_time = datetime.now()
-                    connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
-                    connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
-                    connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2] 
+                    if (connection_threads[self.connection_index].handshake_completed):
+                        connection_threads[self.connection_index].packet_1 = True
+                        connection_threads[self.connection_index].packet_1_rcv_time = datetime.now()
+                        connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
+                        connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
+                        connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2] 
                     
                             
             else:

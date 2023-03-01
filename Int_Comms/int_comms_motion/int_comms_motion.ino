@@ -60,9 +60,6 @@ void setup() {
   Fastwire::setup(400, true);
 #endif
 
-  while (!Serial) {
-  }
-
   mpu.initialize();
   while (!mpu.testConnection()) {
     mpu.initialize();
@@ -208,7 +205,8 @@ void send_data_string(float data_set[]) {
   packet_overhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
-  delay(30);
+  
+  delay(12);
 
   //packet 1
   signs = 0;
@@ -272,7 +270,8 @@ void loop() {
     }
   }
 
-  delay(30);
+  delay(12);
+  
   if (handshake && !handshake_ack && error) {
     data_padding(HANDSHAKE);
     packet_overhead(HANDSHAKE_ID);

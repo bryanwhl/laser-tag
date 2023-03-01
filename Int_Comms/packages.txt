@@ -1,0 +1,12 @@
+pip3 install crc8
+
+sudo apt-get install python3-pip libglib2.0-dev
+sudo pip3 install bluepy
+
+If this fails you should install from source.
+
+sudo apt-get install git build-essential libglib2.0-dev
+git clone https://github.com/IanHarvey/bluepy.git
+cd bluepy
+python setup.py build
+sudo python setup.py install
