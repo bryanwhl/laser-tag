@@ -10,13 +10,11 @@ from datetime import datetime
 from math import floor
 from queue import Queue
 from signal import signal, SIGPIPE, SIG_DFL  
-signal(SIGPIPE,SIG_DFL) 
-
-from socket import *
-import time
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from base64 import b64encode
+
+signal(SIGPIPE,SIG_DFL) 
 
 # Init connection settings
 HOST = "localhost"
@@ -39,11 +37,11 @@ all beetle address
 '''
 beetle_addresses = [
     "B0:B1:13:2D:D4:AB", 
-    #"B0:B1:13:2D:D8:8C",
-    #"B0:B1:13:2D:D4:89",
-    #"B0:B1:13:2D:B3:08",
-    #"B0:B1:13:2D:D8:AC",
-    #"B0:B1:13:2D:CD:A2"
+    "B0:B1:13:2D:D8:8C",
+    "B0:B1:13:2D:D4:89",
+    # "B0:B1:13:2D:B3:08",
+    "B0:B1:13:2D:D8:AC",
+    "B0:B1:13:2D:CD:A2"
     ]
 beetle_status = {}
 PACKET_LENGTH = 20
@@ -83,33 +81,39 @@ class ExternalComms(Thread):
         try:
             while True:
                 if not vest_msg.empty():
-                    data = "vest " + str(vest_msg.get())
-                    data_bytes = data.encode()
+                    message = "vest " + str(vest_msg.get())
+                    encodedMessage = message.encode()
                     # Encrypt data
                     cipher = AES.new(key, AES.MODE_CBC)
-                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
-                    encrypted_data_b64 = b64encode(encrypted_data)
-                    self.clientSocket.send(encrypted_data_b64)
+                    encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
+                    encryptedMessage_64 = b64encode(encryptedMessage)
+                    len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
+                    finalmsg = len_byte+encryptedMessage_64
+                    self.clientSocket.send(finalmsg)
                     time.sleep(0.05)
                     
                 if not gun_msg.empty():
-                    data = "gun " + str(gun_msg.get())
-                    data_bytes = data.encode()
+                    message = "gun " + str(gun_msg.get())
+                    encodedMessage = message.encode()
                     # Encrypt data
                     cipher = AES.new(key, AES.MODE_CBC)
-                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
-                    encrypted_data_b64 = b64encode(encrypted_data)
-                    self.clientSocket.send(encrypted_data_b64)
+                    encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
+                    encryptedMessage_64 = b64encode(encryptedMessage)
+                    len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
+                    finalmsg = len_byte+encryptedMessage_64
+                    self.clientSocket.send(finalmsg)
                     time.sleep(0.05)
                     
                 if not motion_msg.empty():
-                    data = str(motion_msg.get())
-                    data_bytes = data.encode()
+                    message = str(motion_msg.get())
+                    encodedMessage = message.encode()
                     # Encrypt data
                     cipher = AES.new(key, AES.MODE_CBC)
-                    encrypted_data = cipher.iv + cipher.encrypt(pad(data_bytes, AES.block_size))
-                    encrypted_data_b64 = b64encode(encrypted_data)
-                    self.clientSocket.send(encrypted_data_b64)
+                    encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
+                    encryptedMessage_64 = b64encode(encryptedMessage)
+                    len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
+                    finalmsg = len_byte+encryptedMessage_64
+                    self.clientSocket.send(finalmsg)
                     time.sleep(0.05)
         except KeyboardInterrupt:
             print("Closing Client Socket")

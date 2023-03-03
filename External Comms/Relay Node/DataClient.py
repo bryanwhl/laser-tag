@@ -1,5 +1,4 @@
 from socket import *
-import time
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from base64 import b64encode
@@ -16,7 +15,7 @@ key = bytes(str(key), encoding="utf8")
 clientSocket = socket(AF_INET, SOCK_STREAM)
 clientSocket.connect((HOST, PORT))
 
-# Send message to server every 0.1 second
+# Send message to server after every input
 try:
     i = 0
     while True:
@@ -27,7 +26,9 @@ try:
         cipher = AES.new(key, AES.MODE_CBC)
         encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
         encryptedMessage_64 = b64encode(encryptedMessage)
-        clientSocket.send(encryptedMessage_64)
+        len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
+        finalmsg = len_byte+encryptedMessage_64
+        clientSocket.send(finalmsg)
         i+=1
 
 except KeyboardInterrupt:
