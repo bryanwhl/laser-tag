@@ -14,7 +14,6 @@
 
 MPU6050 mpu;
 // MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
@@ -48,8 +47,10 @@ float data_set[6];
 bool error          = false;
 bool handshake      = false;
 bool handshake_ack  = false;
+bool start_collecting = false;
 unsigned long TIMEOUT = 1000;
 unsigned long sent_time;
+unsigned long start_time = millis();
 
 void setup() {
   Serial.begin(115200);
@@ -71,15 +72,13 @@ void setup() {
   mpu.setYGyroOffset(-30);
   mpu.setZGyroOffset(-1);
   mpu.setZAccelOffset(2402);
-  
+
   if (devStatus == 0) {
     // Calibration Time: generate offsets and calibrate our MPU6050
     mpu.CalibrateAccel(6);
     mpu.CalibrateGyro(6);
     // turn on the DMP, now that it's ready
     mpu.setDMPEnabled(true);
-    // set our DMP Ready flag so the main loop() function knows it's okay to use it
-    dmpReady = true;
 
     // get expected DMP packet size for later comparison
     packetSize = mpu.dmpGetFIFOPacketSize();
@@ -205,7 +204,7 @@ void send_data_string(float data_set[]) {
   packet_overhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
-  
+
   delay(10);
 
   //packet 1
@@ -260,18 +259,18 @@ void loop() {
         error = false;
         handshake_ack = false;
         break;
-      case 'W' ://Received Wakeup Call
-        data_padding(WAKEUP);
-        packet_overhead(WAKEUP_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
+      case 'R'://start data collection
+        start_collecting = true;
+        start_time = millis();
         break;
-      default: break;
+      default: 
+        
+        break;
     }
   }
 
-  delay(30);
-  
+  delay(10);
+
   if (handshake && !handshake_ack && error) {
     data_padding(HANDSHAKE);
     packet_overhead(HANDSHAKE_ID);
@@ -280,7 +279,6 @@ void loop() {
     error = false;
   }
 
-  if (!dmpReady) return;
   // read a packet from FIFO
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet
 
@@ -302,9 +300,13 @@ void loop() {
     data_set[5] = aaReal.z;
 
     //spam sending of data for motion sensor
-    if (handshake_ack) {
+    if (handshake_ack && start_collecting) {
       send_data_string(data_set);
       memset(data_set, 0, 6);
     }
+  }
+
+  if(millis() - start_time > 1050) {
+    start_collecting = false;
   }
 }

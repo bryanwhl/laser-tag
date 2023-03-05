@@ -116,8 +116,6 @@ class ExternalComms(Thread):
             self.clientSocket.close() 
             sys.exit(1)
 
-
-# https://careerkarma.com/blog/python-string-to-int/
 class MyDelegate(btle.DefaultDelegate):
     def __init__(self, connection_index):
         btle.DefaultDelegate.__init__(self)
@@ -128,7 +126,6 @@ class MyDelegate(btle.DefaultDelegate):
         self.packet_total = 0
 
     def handleNotification(self, cHandle, data):
-        #print(connection_threads[self.connection_index].addr, " ", data)
         
         #add received data to buffer
         self.buffer += clean_data(str(data))
@@ -140,14 +137,11 @@ class MyDelegate(btle.DefaultDelegate):
         global program_start_time
         total_packet += 1
         
-        #for external comms
         global vest_msg
         global gun_msg
         
         connection_threads[self.connection_index].total_data_received += utf8len(str(data))
         total_bytes_obtained += utf8len(str(data))
-        
-        #connection_threads[self.connection_index].data_rate()
         
         if(len(self.buffer) >= PACKET_LENGTH):
             self.packet_processed += 1
@@ -220,31 +214,11 @@ class MyDelegate(btle.DefaultDelegate):
             else:
                 print(CR, "ERR in CRC", SPACE, end = END)
                 self.buffer = ""
-                #reset all boolean when error in packet
                 connection_threads[self.connection_index].error = True
-                #connection_threads[self.connection_index].packet_0 = False
-                #connection_threads[self.connection_index].packet_1 = False
                 time.sleep(0.01)
-                
-        #fragmented_packet = self.packet_total- self.packet_processed
-        #print(" packets received: ", self.packet_total, "fragmented packets: ", fragmented_packet, SPACE, end = END)
-        
-        '''
-        if(connection_threads[self.connection_index].handshake_completed == True):
-            kbps = (total_bytes_obtained * 8) / (1000 * (datetime.now() - program_start_time).total_seconds())
-            print(CR, SPACE, " Data rate(kbps):", round(kbps, 6), end = END)
-            fragmented_packet = total_packet - total_packet_processed
-            print(" Packets received: ", total_packet, "Fragmented packets: ", fragmented_packet, SPACE, SPACE, end = END)
-        '''
-
-# data processing for incoming packets
-
 
 def clean_data(info):
     return (info[2:-1])
-
-# remove padded '#' from message
-
 
 def clear_padding(data):
     while True:
@@ -253,7 +227,6 @@ def clear_padding(data):
         else:
             return data
 
-# obtain imu value from string
 def unpack_data(data):
     signs   = int(data[0])
     value_1 = int(data[1:6]) / 100
@@ -267,11 +240,8 @@ def unpack_data(data):
         value_1 = -value_1
     return value_1, value_2, value_3
 
-# return size of packet received https://stackoverflow.com/questions/30686701/python-get-size-of-string-in-bytes
 def utf8len(s):
     return len(s.encode('utf-8'))
-
-# CRC check https://pypi.org/project/crc8/
 
 def crc_check(data_string):
     hash = crc8.crc8()
@@ -282,11 +252,6 @@ def crc_check(data_string):
         return True
     else:
         return False
-
-# Thread generation for each beetle https://thispointer.com/create-a-thread-using-class-in-python/
-# To use for timeout to trigger sending of wakeup call https://pynative.com/python-get-time-difference/
-# https://www.w3schools.com/python/python_dictionaries.asp
-
 
 class BeetleThread(Thread):
     start_time = datetime.now()
@@ -340,7 +305,6 @@ class BeetleThread(Thread):
                 self.receive_data(self.pheripheral, motion_msg)
 
         except BTLEException:
-            # enter when disconnected (power/distance both works yay)
             self.pheripheral.disconnect()
             # start a function to create new thread after reconnecting
             reconnect = Thread(target=reconnection(
@@ -362,7 +326,6 @@ class BeetleThread(Thread):
             print("HANDSHAKE SENT")
             # Wait for Handshake packet from bluno, sent handshake req agn if not received after some time
             while(count < 5):
-                #print(self.connection_index, " waiting for handshake...")
                 p.waitForNotifications(1)
                 time.sleep(0.1)
                 count += 1
@@ -373,6 +336,7 @@ class BeetleThread(Thread):
         self.send_data("A")
         self.handshake_reply = False
         count = 0
+        
         #wait incase there is retransmission of handshake by beetle
         while(count < 6):
             p.waitForNotifications(0.2)
@@ -419,39 +383,31 @@ class BeetleThread(Thread):
         if self.error:
             if (self.err_count > 8):
                 raise BTLEException("CONTINUOUS FAIL CRC :(")
-            #print(CR, "PACKET CORRUPTED NACK SENT", SPACE, end = END)
-            #self.send_data("N")
             self.err_count = self.err_count+1
             self.error = False
             
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
         if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
-            #print(CR, "Full motion sensor data received", SPACE, end = END)
             print(CR, self.current_data, SPACE, end = END)
             queue.put(self.current_data)
+            
             #each data can only be used once
             self.packet_0 = False
             self.packet_1 = False
             
     def acknowledge_data(self):
-        
-        #print("DATA RECEIVED. ACK SENT:", str(self.seq_num))
         print(CR, "DATA RECEIVED. ACK SENT", SPACE, end = END)
         self.send_data(self.rcv_seq_num)
         if(self.correct_seq_num and self.seq_num == 1):
             self.seq_num = 0
         elif(self.correct_seq_num and self.seq_num == 0):
             self.seq_num = 1
-        #print("NEW SEQ NUM:", self.seq_num)
             
     def data_rate(self):
-        #https://www.symmetryelectronics.com/blog/classic-bluetooth-vs-bluetooth-low-energy-a-round-by-round-battle/
-        #1byte = 8bit
         kbps = (self.total_data_received * 8) / (1000 * (datetime.now() - self.start_time).total_seconds())
         print(" Data rate(kbps):", round(kbps, 6), SPACE, end = END)
         
     def send_data(self, message):
-        #print(message, " message sent to ", self.connection_index)
         for characteristic in self.characteristic:
                 characteristic.write(bytes(message, "UTF-8"), withResponse=False)
         
@@ -473,7 +429,6 @@ class BeetleThread(Thread):
 
 
 def reconnection(addr, index):
-    #print("\rRECONNECTING...", SPACE, end = END)
     while True:
         try:
             print(CR, "RECONNECTING %s" % (addr), SPACE, end = END)

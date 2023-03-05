@@ -12,13 +12,10 @@ connection_threads = {}
 '''
 all beetle address
 "B0:B1:13:2D:D4:AB" - motion sensor
-"B0:B1:13:2D:CD:A2" - gun
-"B0:B1:13:2D:D4:89" - vest
 "B0:B1:13:2D:B3:08" - motion sensor
-"B0:B1:13:2D:D8:AC" - vest
-"B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = ["B0:B1:13:2D:D4:AB"]
+#beetle_addresses = ["B0:B1:13:2D:B3:08"]
 beetle_status = {}
 PACKET_LENGTH = 20
 
@@ -37,14 +34,11 @@ class MyDelegate(btle.DefaultDelegate):
         self.buffer = ""
 
     def handleNotification(self, cHandle, data):
-        #print(addr, " ", data)
         
-        #add received data to buffer
         self.buffer += clean_data(str(data))
-        global handshake_reply
         global packet_1
         global packet_0
-        #data_rate()
+        global handshake_reply
         
         if(len(self.buffer) >= PACKET_LENGTH):
             data_string = self.buffer[:PACKET_LENGTH]
@@ -60,14 +54,14 @@ class MyDelegate(btle.DefaultDelegate):
                 if ((PACKET_ID == '1') and (DATA == "HANDSHAKE")):
                     print(CR, "Handshake reply received", SPACE, end = END)
                     handshake_reply = True
-                elif ((PACKET_ID == '5') and start_collecting):
+                elif ((PACKET_ID == '5')):
                     #print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     packet_0 = True
                     current_data["roll"] = extracted_data[0]
                     current_data["pitch"] = extracted_data[1]
                     current_data["yaw"] = extracted_data[2]
-                elif ((PACKET_ID == '6') and start_collecting):
+                elif ((PACKET_ID == '6')):
                     extracted_data = unpack_data(DATA)
                     packet_1 = True
                     current_data["accX"] = extracted_data[0]      
@@ -76,12 +70,8 @@ class MyDelegate(btle.DefaultDelegate):
                     
                             
             else:
-                print(CR, "ERR in CRC", SPACE)
+                print(CR, "ERR in CRC: ", data_string)
                 self.buffer = ""
-                #reset all boolean when error in packet
-                error = True
-                #packet_0 = False
-                #packet_1 = False
                 time.sleep(0.01)
                 
 
@@ -206,13 +196,10 @@ empty_data = {
     "accZ"  : "",
 }
 
-start_collecting = False
 
 def main():
     global packet_0
     global packet_1
-    global start_collecting
-    
     
     while True:
         try:
@@ -225,7 +212,7 @@ def main():
         except BTLEException:
             time.sleep(3)
     handshake(pheripheral, characteristic)
-    start_collecting = True
+    packet_received = 0
     
     print("Collecting data")
     with open('./expected_data.csv', 'w', encoding='UTF8', newline='') as f:
@@ -235,24 +222,24 @@ def main():
         while True:
             input()
             start_time = datetime.now()
+            send_data("R", characteristic)
             print("START COLLECTING")
             while True:
                 pheripheral.waitForNotifications(0.1)
                     
                 if packet_0 and packet_1:
+                    packet_received += 1
                     writer.writerow(current_data)
                     packet_0 = False
                     packet_1 = False
                 
-                if( (datetime.now() - start_time).total_seconds()) > 1:
+                if( (datetime.now() - start_time).total_seconds()) > 1.3:
                     print("END COLLECTION")
+                    print(packet_received)
+                    packet_received = 0
                     break
                     
             writer.writerow(empty_data)
-            
-                
-    
-        
 
 if __name__ == "__main__":
     main()
