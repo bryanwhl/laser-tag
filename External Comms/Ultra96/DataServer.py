@@ -26,9 +26,7 @@ def thread(connSocket, clientAddr):
 
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decryptedMessage = cipher.decrypt(decodedMessage[16:])
-        print(decryptedMessage)
         decryptedMessage = unpad(decryptedMessage, AES.block_size)
-        print(decryptedMessage)
         decryptedMessage = decryptedMessage.decode()
         print("Received message from ", clientAddr, ": ", decryptedMessage)
 
