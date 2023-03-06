@@ -15,28 +15,31 @@ key = bytes(str(key), encoding="utf8")
 # Thread to receive the message and echo back message 
 def thread(connSocket, clientAddr):
     while True:
-        # Receive data
-        message = connSocket.recv(2048)
-        if not message:
-            connSocket.close()
-            return
-        # Decrypt data
-        decodedMessage = b64decode(message)
-        iv = decodedMessage[:AES.block_size]
+        try:
+            # Receive data
+            message = connSocket.recv(2048)
+            if not message:
+                connSocket.close()
+                return
+            # Decrypt data
+            decodedMessage = b64decode(message)
+            iv = decodedMessage[:AES.block_size]
 
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        decryptedMessage = cipher.decrypt(decodedMessage[16:])
-        decryptedMessage = unpad(decryptedMessage, AES.block_size)
-        decryptedMessage = decryptedMessage.decode()
-        x = decryptedMessage.split()
-        if(x[0] == "vest"):
-            print("vest signal from ", x[1])
-        elif(x[0] == "gun"):
-            print("gun signal from ", x[1])
-        else:
-            unpacked = eval(decryptedMessage)
-            print("motion signal from ", unpacked["id"])
-            print(unpacked)
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            decryptedMessage = cipher.decrypt(decodedMessage[16:])
+            decryptedMessage = unpad(decryptedMessage, AES.block_size)
+            decryptedMessage = decryptedMessage.decode()
+            x = decryptedMessage.split()
+            if(x[0] == "vest"):
+                print("vest signal from ", x[1])
+            elif(x[0] == "gun"):
+                print("gun signal from ", x[1])
+            else:
+                unpacked = eval(decryptedMessage)
+                print("motion signal from ", unpacked["id"])
+                print(unpacked)
+        except ValueError:
+            print("There is an error with IV for this packet")
             
 def main():
     # Create server socket and bind to host and port
