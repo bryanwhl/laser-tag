@@ -72,8 +72,6 @@ void setup() {
   data_ack = false;
   data_sent = false;
   seq_num = 0;
-  while (!Serial) {
-  }
   delay(100);
 }
 
