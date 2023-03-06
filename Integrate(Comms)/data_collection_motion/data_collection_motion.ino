@@ -306,7 +306,7 @@ void loop() {
     }
   }
 
-  if(millis() - start_time > 1050) {
+  if(millis() - start_time > 1500) {
     start_collecting = false;
   }
 }

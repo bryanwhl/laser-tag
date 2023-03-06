@@ -159,9 +159,6 @@ void loop() {
         break;
       default: 
         hpExternal = cmd;
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
     }

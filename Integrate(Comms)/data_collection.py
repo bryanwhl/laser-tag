@@ -215,7 +215,7 @@ def main():
     packet_received = 0
     
     print("Collecting data")
-    with open('./expected_data.csv', 'w', encoding='UTF8', newline='') as f:
+    with open('./expected_data_noisee.csv', 'w', encoding='UTF8', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
     
@@ -233,7 +233,7 @@ def main():
                     packet_0 = False
                     packet_1 = False
                 
-                if( (datetime.now() - start_time).total_seconds()) > 1.3:
+                if( (datetime.now() - start_time).total_seconds()) > 1.6:
                     print("END COLLECTION")
                     print(packet_received)
                     packet_received = 0
