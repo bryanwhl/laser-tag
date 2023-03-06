@@ -11,8 +11,8 @@ from math import floor
 from queue import Queue
 from signal import signal, SIGPIPE, SIG_DFL  
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-from base64 import b64encode
+from Crypto.Util.Padding import pad, unpad
+from base64 import b64encode, b64decode
 
 signal(SIGPIPE,SIG_DFL) 
 
@@ -63,11 +63,65 @@ motion_msg = Queue(maxsize = 1269)
 vest_msg = Queue(maxsize = 1269)
 gun_msg = Queue(maxsize = 1269)
 
+hp_one = []
+hp_two = []
+bullet_one = []
+bullet_two = []
+
 class ExternalComms(Thread):
     
     def __init__(self):
         Thread.__init__(self)
     
+    def receive_from_ultra(self, conn_socket):
+        while True:
+            # Receive and Parse message (len_EncryptedMessage)
+            # recv length followed by '_' followed by cypher
+            message = b''
+            while not message.endswith(b'_'):
+                _d = conn_socket.recv(1)
+                if not _d:
+                    message = b''
+                    break
+                message += _d
+            if len(message) == 0:
+                print('no more data from Ultra96')
+                self.serverSocket.close()
+                return
+
+            message = message.decode("utf-8")
+            length = int(message[:-1])
+            message = b''
+            while len(message) < length:
+                _d = conn_socket.recv(length - len(message))
+                if not _d:
+                    message = b''
+                    break
+                message += _d
+            if len(message) == 0:
+                print('no more data from Ultra96')
+                self.serverSocket.close()
+                return
+            decodedMessage = b64decode(message)
+
+            iv = decodedMessage[:AES.block_size]
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            decryptedMessage = cipher.decrypt(decodedMessage[16:])
+            decryptedMessage = unpad(decryptedMessage, AES.block_size)
+            decryptedMessage = decryptedMessage.decode()
+
+            # Return list of hp and bullets
+            hp_and_bullets = eval(decryptedMessage)
+            hp_one.append(hp_and_bullets[0])
+            hp_two.append(hp_and_bullets[1])
+            bullet_one.append(hp_and_bullets[2])
+            bullet_two.append(hp_and_bullets[3])
+
+            print("HP1: ", hp_one)
+            print("HP2: ", hp_two)
+            print("Bullet1: ", bullet_one)
+            print("Bullet2: ", bullet_two)
+
     def run(self):
         global vest_msg
         global gun_msg
@@ -77,6 +131,11 @@ class ExternalComms(Thread):
         # Create client socket and connect to server
         self.clientSocket = socket(AF_INET, SOCK_STREAM)
         self.clientSocket.connect((HOST, PORT))
+
+        # Create thread to receive from Ultra96
+        receiver_thread = Thread(target=self.receive_from_ultra, args=(self.clientSocket,))
+        receiver_thread.start()
+
         print("connected to server...")
         try:
             while True:
@@ -114,7 +173,7 @@ class ExternalComms(Thread):
                     len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
                     finalmsg = len_byte+encryptedMessage_64
                     self.clientSocket.send(finalmsg)
-                    time.sleep(0.05)
+                    time.sleep(0.05)            
         except KeyboardInterrupt:
             print("Closing Client Socket")
             self.clientSocket.close() 
