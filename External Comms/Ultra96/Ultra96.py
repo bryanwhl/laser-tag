@@ -30,6 +30,8 @@ vestOneQueue = []
 vestTwoQueue = []
 motionOneQueue = []
 motionTwoQueue = []
+actionOneQueue = []
+actionTwoQueue = []
 
 messageQueue = []
 
@@ -69,7 +71,20 @@ class DataServer:
         self.PORT = PORT
         self.serverSocket = socket(AF_INET, SOCK_STREAM)
         self.serverSocket.bind((HOST,PORT))
+        self.client_sockets = []
 
+    def send_to_relay(self, message):
+        encodedMessage = message.encode()
+        # Encrypt data
+        cipher = AES.new(key, AES.MODE_CBC)
+        encryptedMessage = cipher.iv + cipher.encrypt(pad(encodedMessage, AES.block_size))
+        encryptedMessage_64 = b64encode(encryptedMessage)
+        len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
+        finalmsg = len_byte+encryptedMessage_64
+
+        # Send to all clients
+        for client_socket in self.client_sockets:
+            client_socket.send(finalmsg)
 
     # Thread to receive the message
     def thread_DataServer_Receiver(self,connSocket, clientAddr):
@@ -129,6 +144,7 @@ class DataServer:
             while True:
                 # Upon successful connection with a client socket, spawns a new thead
                 connSocket, clientAddr = self.serverSocket.accept()
+                self.client_sockets.append(connSocket)
                 print("Connected to ", clientAddr)
                 serverThread = t.Thread(target=self.thread_DataServer_Receiver, args=(connSocket, clientAddr))
                 serverThread.start()
@@ -160,7 +176,7 @@ class EvalClient:
                     # Send data
                     self.clientSocket.send(finalmsg)
                     # Pop from messageQueue
-                    messageQueue.pop(0)
+                    messageQueue.clear()
 
                     # Receive updated game state (Ground Truth)
                     message = b''
@@ -189,7 +205,14 @@ class EvalClient:
                         self.clientSocket.close()
                         return
                     decodedMessage = message.decode()
-                    print("Receive message from eval_server: ", decodedMessage)
+                    # Update game state to ground truth
+                    updated_game_state = json.loads(decodedMessage)
+                    ge.gameState = updated_game_state
+                    # Send updated HP and Bullets to Relay - [HP1, HP2, Bullet1, Bullet2]
+                    hp_and_bullet = str([updated_game_state["p1"]["hp"], updated_game_state["p2"]["hp"], updated_game_state["p1"]["bullets"], updated_game_state["p2"]["bullets"]])
+                    ds.send_to_relay(hp_and_bullet)
+                    
+                    
         except KeyboardInterrupt:
             print("Closing Client Socket")
             self.clientSocket.close()  
@@ -311,7 +334,7 @@ class GameEngine:
         if GAMEMODE == 1:  
             while True:
                 # Waits for player 1 action
-                while len(gunOneQueue) == 0 and len(motionOneQueue) == 0:
+                while not gunOneQueue and not actionOneQueue:
                     pass
 
                 # ADD SLEEP TO WAIT FOR VEST TO GET HIT??
@@ -324,18 +347,16 @@ class GameEngine:
                 # Check for P1 actions
                 if gunOneQueue:
                     self.updateGameState(1, "shoot")
-                elif motionOneQueue:
+                elif actionOneQueue:
                     # TO ADD IMPLEMENTATION WITH BRYAN
                     pass
 
                 # Clear all action buffers
                 gunOneQueue.clear()
-                motionOneQueue.clear()
+                actionOneQueue.clear()
                 vestTwoQueue.clear()
 
                 # Add to messageQueue to send to eval server
-                # DEBUG
-                print(self.gameState)
                 messageQueue.append(self.gameState)
                 
 
@@ -344,24 +365,11 @@ class GameEngine:
         elif GAMEMODE == 2:
             while True:
                 # Waits for player 1 and 2 action
-                while (not gunOneQueue and not motionOneQueue) or (not gunTwoQueue and not motionTwoQueue):
-                    pass
-
-                # Check for P1 actions
-                if gunOneQueue:
-                    self.updateGameState(1, "shoot")
-                elif motionOneQueue:
-                    # TO ADD IMPLEMENTATION WITH BRYAN
+                while (not gunOneQueue and not actionOneQueue) or (not gunTwoQueue and not actionTwoQueue):
                     pass
                 
-                # Check for P2 actions
-                if gunTwoQueue:
-                    self.updateGameState(2, "shoot")
-                elif motionTwoQueue:
-                    # TO ADD IMPLEMENTATION WITH BRYAN
-                    pass
-
                 # ADD SLEEP TO WAIT FOR VEST TO GET HIT??
+                sleep(0.5)
 
                 # Check for P1 vest
                 if vestOneQueue:
@@ -370,12 +378,26 @@ class GameEngine:
                 # Check for P2 vest
                 if vestTwoQueue:
                     self.updateGameState(2, "hit")
+
+                # Check for P1 actions
+                if gunOneQueue:
+                    self.updateGameState(1, "shoot")
+                elif actionOneQueue:
+                    # TO ADD IMPLEMENTATION WITH BRYAN
+                    pass
                 
+                # Check for P2 actions
+                if gunTwoQueue:
+                    self.updateGameState(2, "shoot")
+                elif actionTwoQueue:
+                    # TO ADD IMPLEMENTATION WITH BRYAN
+                    pass
+
                 # Clear all action buffers
                 gunOneQueue.clear()
                 gunTwoQueue.clear()
-                motionOneQueue.clear()
-                motionTwoQueue.clear()
+                actionOneQueue.clear()
+                actionTwoQueue.clear()
                 vestOneQueue.clear()
                 vestTwoQueue.clear()
 
@@ -388,7 +410,12 @@ class GameEngine:
                 # TO IMPLEMENT
                 pass
 
-        
+class HardwareAI:
+    def thread_hardware_ai(self):
+        while True:
+            if len(motionOneQueue) >= 10:
+                self.get_action(motionOneQueue[-10:])
+                motionOneQueue = motionOneQueue[:-10]
 
 def thread_debug():
     while True:
@@ -399,15 +426,18 @@ def thread_debug():
         print("MOTION 1 - ", motionOneQueue)
         print("MOTION 2 - ", motionTwoQueue)
 
+# Init global objects
+ds = DataServer(DATA_HOST, DATA_PORT)
+ec = EvalClient(EVAL_HOST, EVAL_PORT)
+ge = GameEngine()
+
 def main():
     print("GAMEMODE-", GAMEMODE)
-    ds = DataServer(DATA_HOST, DATA_PORT)
-    ec = EvalClient(EVAL_HOST, EVAL_PORT)
-    ge = GameEngine()
 
     dataServerThread = t.Thread(target=ds.thread_DataServer)
     evalServerThread = t.Thread(target=ec.thread_EvalClient)
     gameEngineThread = t.Thread(target=ge.thread_GameEngine)
+
 
     # debugThread = t.Thread(target=thread_debug)
 
