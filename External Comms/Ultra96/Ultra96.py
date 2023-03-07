@@ -16,6 +16,17 @@ DATA_PORT = 8080
 EVAL_HOST = "192.168.95.247"
 EVAL_PORT = 1515
 
+# Variables for Hardware AI
+WINDOW_SIZE = 20
+INT_TO_ACTION_MAPPING = {
+    0: 'grenade',
+    1: 'shield',
+    2: 'reload',
+    3: 'logout',
+    4: 'nil'
+}
+THRESHOLD = 100 # Tune this value
+
 # Gamemode - 1P/2P/2P Unrestricted (1/2/3)
 GAMEMODE = int(sys.argv[1])
 # Check if valid GAMEMODE
@@ -411,6 +422,38 @@ class GameEngine:
                 pass
 
 class HardwareAI:
+
+    def __init__(self):
+        self.queue = []
+
+    def append_10_readings_to_queue(self, readings): # readings: 2D list of 10 readings * 6 attributes
+        self.queue.append(readings)
+        if len(self.queue) >= 30:
+            self.queue = self.queue[10:]
+
+    def detect_start_of_move(self): # 2D array of 20 * 6 dimensions
+        if len(self.queue) < 20:
+            return ''
+        move_list = self.queue[:20]
+        sum_of_first_10_readings = [0, 0, 0, 0, 0, 0]
+        sum_of_next_10_readings = [0, 0, 0, 0, 0, 0]
+        for attribute_idx in range(6):
+            for reading_no in range(10):
+                sum_of_first_10_readings[attribute_idx] += move_list[reading_no][attribute_idx]
+            for reading_no in range(10, 20):
+                sum_of_next_10_readings[attribute_idx] += move_list[reading_no][attribute_idx]
+        difference = sum(sum_of_next_10_readings) - sum(sum_of_first_10_readings)
+        return difference > THRESHOLD
+
+    def predict(self):
+      
+        if len(self.queue) < 20:
+            print("function submit_input: input length is less than 20")
+            return []
+
+        random_classification = random.randint(0, 5)
+        return INT_TO_ACTION_MAPPING[random_classification]
+
     def thread_hardware_ai(self):
         while True:
             if len(motionOneQueue) >= 10:
