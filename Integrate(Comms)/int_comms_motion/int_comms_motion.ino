@@ -14,7 +14,6 @@
 
 MPU6050 mpu;
 // MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
 uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
@@ -78,8 +77,6 @@ void setup() {
     mpu.CalibrateGyro(6);
     // turn on the DMP, now that it's ready
     mpu.setDMPEnabled(true);
-    // set our DMP Ready flag so the main loop() function knows it's okay to use it
-    dmpReady = true;
 
     // get expected DMP packet size for later comparison
     packetSize = mpu.dmpGetFIFOPacketSize();
@@ -280,7 +277,6 @@ void loop() {
     error = false;
   }
 
-  if (!dmpReady) return;
   // read a packet from FIFO
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet
 
