@@ -9,7 +9,6 @@
 const int RECV_PIN = 3;
 IRrecv irrecv(RECV_PIN);
 decode_results results;
-int hp;
 char hpExternal = 'X';
 
 //constants
@@ -26,6 +25,7 @@ uint8_t data[16];
 uint8_t packet[20];
 float data_set[6];
 int seq_num = 0;
+int hp = 100;
 
 //boolean checks for logic program
 //check that data transfer has begin
@@ -207,7 +207,17 @@ void loop() {
 
   if (irrecv.decode()) {
     activation_count += 1;
+    delay(300);
     irrecv.resume();
+    hp -= 10;
+    if(hp >= 70){
+      hpExternal = 'h';
+    } else if (hp >= 40) {
+      hpExternal = 'm';
+    } else {
+      hpExternal = 'l';
+    }
+    if(hp < 0) hp = 100;
   }
   switch (hpExternal) {
     case 'l': // hp >= 0
@@ -231,5 +241,4 @@ void loop() {
       digitalWrite(17, HIGH);
       break;
   }
-  delay(300);
 }
