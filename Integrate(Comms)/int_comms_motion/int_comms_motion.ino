@@ -1,8 +1,7 @@
 #include <CRCx.h>
 #define BEETLE_ID '0' // change based on beetle
-#define hasHANDSHAKE_ID '1'
+#define HANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
-#define MOTION_ID '5'
 #define MOTION_ID_P1 '5'
 #define MOTION_ID_P2 '6'
 
@@ -30,7 +29,7 @@ float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 //constants
-char hasHANDSHAKE[]  = "hasHANDSHAKE";
+char HANDSHAKE[]  = "HANDSHAKE";
 char ACK[]        = "ACK";
 char WAKEUP[]     = "WAKEUP";
 int PACKET_SIZE   = 20;
@@ -332,9 +331,9 @@ void loop() {
           delay(100);
         }
         break;
-      case 'H'://Received hasHandshake request
-        dataPadding(hasHANDSHAKE);
-        packetOverhead(hasHANDSHAKE_ID);
+      case 'H'://Received Handshake request
+        dataPadding(HANDSHAKE);
+        packetOverhead(HANDSHAKE_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         sentTime = millis();

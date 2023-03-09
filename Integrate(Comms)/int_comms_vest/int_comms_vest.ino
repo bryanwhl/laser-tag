@@ -9,7 +9,7 @@
 const int RECV_PIN = 3;
 IRrecv irrecv(RECV_PIN);
 decode_results results;
-char hpExternal = 'X';
+char hpLevel = 'X';
 
 //constants
 char HANDSHAKE[]  = "HANDSHAKE";
@@ -157,9 +157,12 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      default: 
-        hpExternal = cmd;
+      default:  
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
+        hp = (int)((char)cmd - 'a') * 10;
         break;
     }
   }
@@ -211,15 +214,16 @@ void loop() {
     irrecv.resume();
     hp -= 10;
     if(hp >= 70){
-      hpExternal = 'h';
+      hpLevel = 'h';
     } else if (hp >= 40) {
-      hpExternal = 'm';
+      hpLevel = 'm';
+    } else if (hp >= 0){
+      hpLevel = 'l';
     } else {
-      hpExternal = 'l';
+      hpLevel = 'x';
     }
-    if(hp < 0) hp = 100;
   }
-  switch (hpExternal) {
+  switch (hpLevel) {
     case 'l': // hp >= 0
       digitalWrite(14, LOW);
       digitalWrite(15, LOW);
@@ -234,6 +238,11 @@ void loop() {
       digitalWrite(14, HIGH);
       digitalWrite(15, HIGH);
       digitalWrite(17, HIGH);
+      break;
+    case 'x': // hp >= 70
+      digitalWrite(14, LOW);
+      digitalWrite(15, HIGH);
+      digitalWrite(17, LOW);
       break;
      default: 
       digitalWrite(14, HIGH);
