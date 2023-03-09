@@ -1,6 +1,6 @@
 #include <CRCx.h>
 #define BEETLE_ID '0' // change based on beetle
-#define HANDSHAKE_ID '1'
+#define hasHANDSHAKE_ID '1'
 #define WAKEUP_ID '2'
 #define MOTION_ID '5'
 #define MOTION_ID_P1 '5'
@@ -15,7 +15,7 @@
 MPU6050 mpu;
 // MPU control/status vars
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
+uint8_t devStatus;      // return status after each device operation (0 = success, !0 = hasError)
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64]; // FIFO storage buffer
@@ -30,7 +30,7 @@ float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 //constants
-char HANDSHAKE[]  = "HANDSHAKE";
+char hasHANDSHAKE[]  = "hasHANDSHAKE";
 char ACK[]        = "ACK";
 char WAKEUP[]     = "WAKEUP";
 int PACKET_SIZE   = 20;
@@ -39,16 +39,103 @@ int PACKET_SIZE   = 20;
 //create variable to be used for packet and data processing
 uint8_t data[16];
 uint8_t packet[20];
-float data_set[6];
+float dataSet[6];
 
 //boolean checks for logic program
 //check that data transfer has begin
 //check if receive error or handshake from laptop
-bool error          = false;
-bool handshake      = false;
-bool handshake_ack  = false;
+bool hasError          = false;
+bool hasHandshake      = false;
+bool hasHandshakeAck  = false;
 unsigned long TIMEOUT = 1000;
-unsigned long sent_time;
+unsigned long sentTime;
+
+/*-------------------------------------------------------------------------------------
+START OF THRESHOLDING
+-------------------------------------------------------------------------------------*/
+#define QUEUE_CAPACITY 20
+#define ARRAY_SIZE 6
+float THRESHOLD = 10000;
+int NUM_ACTION_PACKETS = 50;
+int SENT_ACTION_PACKETS = 0;
+bool isStartOfMove = false;
+
+typedef struct Queuee {
+    int front, capacity, size;
+    float internalQueue[QUEUE_CAPACITY][ARRAY_SIZE];
+    Queuee() {
+        front = 0;
+        size = 0;
+        capacity = QUEUE_CAPACITY;
+    }
+ 
+    void queueEnqueue(float data[6]) {
+        if (size >= capacity) {
+            return;
+        }
+         
+        int index = (front+size) % 20;
+        ++size;
+        memcpy(internalQueue[index], data, ARRAY_SIZE * sizeof(float));
+        return;
+    }
+ 
+    void queueDequeue(float data[ARRAY_SIZE]) {
+        if (size == 0) {
+            return;
+        }
+        
+        memcpy(data, internalQueue[front], sizeof(internalQueue[front]));
+        front = (front+1) % 20;
+        --size;
+        return;
+    }
+    
+    void getSumOfFirstHalf(float data[6]) {
+        float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
+	int index = (front + 0) % 20;
+        for(int i = 0; i < 10; ++i) {
+            for(int j = 0; j < ARRAY_SIZE; ++j) {
+                currentSum[j] += internalQueue[index][j];
+            }
+	    ++index;
+        }
+        memcpy(data, currentSum, sizeof(currentSum));
+    }
+    
+    void getSumOfSecondHalf(float data[ARRAY_SIZE]) {
+        float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
+	int index = (front + 0) % 20;
+        for(int i = 10; i < 20; ++i) {
+            for(int j = 0; j < ARRAY_SIZE; ++j) {
+                index = (front + i) % 20;
+                currentSum[j] += internalQueue[index][j];
+            }
+	    ++index;
+        }
+        memcpy(data, currentSum, sizeof(currentSum));
+    }
+} Queuee;    
+
+Queuee bufffer = Queuee();
+
+bool checkStart0fMove() { //2d array of 20 by 6 dimension
+    float difference = 0;
+    float sumOfFirstHalf[6] = {0, 0, 0, 0, 0, 0};
+    float sumOfSecondHalf[6] = {0, 0, 0, 0, 0, 0};
+    
+    bufffer.getSumOfFirstHalf(sumOfFirstHalf);
+    bufffer.getSumOfSecondHalf(sumOfSecondHalf);
+    
+    for(int i = 0; i < 6; ++i) {
+        difference += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
+    }
+    return (long)difference > THRESHOLD;
+}
+
+/*-------------------------------------------------------------------------------------
+END OF THRESHOLDING
+-------------------------------------------------------------------------------------*/
 
 void setup() {
   Serial.begin(115200);
@@ -81,17 +168,17 @@ void setup() {
     // get expected DMP packet size for later comparison
     packetSize = mpu.dmpGetFIFOPacketSize();
   } else {
-    // ERROR!
+    // hasERROR!
     // 1 = initial memory load failed
     // 2 = DMP configuration updates failed
     // (if it's going to break, usually the code will be 1)
     setup();
   }
 
-  sent_time = millis();
-  error = false;
-  handshake = false;
-  handshake_ack = false;
+  sentTime = millis();
+  hasError = false;
+  hasHandshake = false;
+  hasHandshakeAck = false;
   delay(100);
 }
 
@@ -107,24 +194,24 @@ int countDigits(long num) {
 }
 
 // add digit into string
-void insert_digit(char temp_data[16], int &index, long value) {
-  int num_digit;
+void insertDigit(char tempData[16], int &index, long value) {
+  int numDigit;
   char holder[6];
   String temp;
 
   temp = String(abs(value));
   temp.toCharArray(holder, 6);
-  num_digit = countDigits(abs(value));
-  for (int i = 0; i < 5 - num_digit; ++i) {
-    temp_data[index++] = '0';
+  numDigit = countDigits(abs(value));
+  for (int i = 0; i < 5 - numDigit; ++i) {
+    tempData[index++] = '0';
   }
-  for (int i = 0; i < num_digit; ++i) {
-    temp_data[index++] = holder[i];
+  for (int i = 0; i < numDigit; ++i) {
+    tempData[index++] = holder[i];
   }
 }
 
 //Add # to pad string to 16 char.
-void data_padding(char msg[]) {
+void dataPadding(char msg[]) {
   int len = strlen(msg);
   int j = 0;
   for (int i = 0; i < 16; i = i + 1) {
@@ -138,7 +225,7 @@ void data_padding(char msg[]) {
 }
 
 //Attach packet_id, packet_no and crc to data
-void packet_overhead(char packet_id) {
+void packetOverhead(char packetId) {
   uint8_t result8 = crcx::crc8(data, 16);
   String temp = String(result8, HEX);
   char crc[3];
@@ -147,7 +234,7 @@ void packet_overhead(char packet_id) {
 
   //heading for packet
   packet[0] = BEETLE_ID;
-  packet[1] = packet_id;
+  packet[1] = packetId;
 
   // insert data into body of packet
   for (int i = 2; i < 18; i = i + 1) {
@@ -169,37 +256,37 @@ void packet_overhead(char packet_id) {
 }
 
 //function to send 1 dataset of motion sensor values string version
-void send_data_string(float data_set[]) {
+void sendDataString(float dataSet[]) {
   int signs;
   // convert all value to 5 digit integer
-  long roll  =  (long)(data_set[0] * 100) % 100000;
-  long pitch =  (long)(data_set[1] * 100) % 100000;
-  long yaw   =  (long)(data_set[2] * 100) % 100000;
-  long accX  =  (long)(data_set[3] * 100) % 100000;
-  long accY  =  (long)(data_set[4] * 100) % 100000;
-  long accZ  =  (long)(data_set[5] * 100) % 100000;
+  long roll  =  (long)(dataSet[0] * 100) % 100000;
+  long pitch =  (long)(dataSet[1] * 100) % 100000;
+  long yaw   =  (long)(dataSet[2] * 100) % 100000;
+  long accX  =  (long)(dataSet[3] * 100) % 100000;
+  long accY  =  (long)(dataSet[4] * 100) % 100000;
+  long accZ  =  (long)(dataSet[5] * 100) % 100000;
   int index;
   char sign[2];
-  char temp_data[16];
+  char tempData[16];
 
   //packet 0
   signs = 0;
   index = 1;
   for (int i = 0; i < 3; ++i) {
-    if (data_set[i] < 0) {
+    if (dataSet[i] < 0) {
       signs += 1;
     }
     signs *= 2;
   }
   String(signs).toCharArray(sign, 2);
-  temp_data[0] = sign[0];
+  tempData[0] = sign[0];
 
-  insert_digit(temp_data, index, roll);
-  insert_digit(temp_data, index, pitch);
-  insert_digit(temp_data, index, yaw);
+  insertDigit(tempData, index, roll);
+  insertDigit(tempData, index, pitch);
+  insertDigit(tempData, index, yaw);
 
-  data_padding(temp_data);
-  packet_overhead(MOTION_ID_P1);
+  dataPadding(tempData);
+  packetOverhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
   
@@ -210,19 +297,19 @@ void send_data_string(float data_set[]) {
   index = 1;
   for (int i = 0; i < 3; ++i) {
     signs *= 2;
-    if (data_set[i + 3] < 0) {
+    if (dataSet[i + 3] < 0) {
       signs += 1;
     }
   }
   String(signs).toCharArray(sign, 2);
-  temp_data[0] = sign[0];
+  tempData[0] = sign[0];
 
-  insert_digit(temp_data, index, accX);
-  insert_digit(temp_data, index, accY);
-  insert_digit(temp_data, index, accZ);
+  insertDigit(tempData, index, accX);
+  insertDigit(tempData, index, accY);
+  insertDigit(tempData, index, accZ);
 
-  data_padding(temp_data);
-  packet_overhead(MOTION_ID_P2);
+  dataPadding(tempData);
+  packetOverhead(MOTION_ID_P2);
   Serial.write((char*)packet, 20);
   memset(data, 0, 16);
 }
@@ -231,35 +318,35 @@ void send_data_string(float data_set[]) {
 void loop() {
 
   //if dont recieve ACK from laptop, send the next set. Not applicable for motion sensor
-  if (millis() - sent_time >= TIMEOUT) {
-    error = true;
+  if (millis() - sentTime >= TIMEOUT) {
+    hasError = true;
   }
 
   if (Serial.available()) {
     byte cmd = Serial.read();
     switch (cmd) {
       case 'A': //Received ACK
-        if (handshake) {
-          handshake_ack = true;
-          handshake = false;
+        if (hasHandshake) {
+          hasHandshakeAck = true;
+          hasHandshake = false;
           delay(100);
         }
         break;
-      case 'H'://Received Handshake request
-        data_padding(HANDSHAKE);
-        packet_overhead(HANDSHAKE_ID);
+      case 'H'://Received hasHandshake request
+        dataPadding(hasHANDSHAKE);
+        packetOverhead(hasHANDSHAKE_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
-        sent_time = millis();
-        handshake = true;
+        sentTime = millis();
+        hasHandshake = true;
 
-        //Reset all boolean to default since handshake req is only when connecting/reconnecting
-        error = false;
-        handshake_ack = false;
+        //Reset all boolean to default since hasHandshake req is only when connecting/reconnecting
+        hasError = false;
+        hasHandshakeAck = false;
         break;
       case 'W' ://Received Wakeup Call
-        data_padding(WAKEUP);
-        packet_overhead(WAKEUP_ID);
+        dataPadding(WAKEUP);
+        packetOverhead(WAKEUP_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
@@ -267,14 +354,14 @@ void loop() {
     }
   }
 
-  delay(30);
+  delay(20);
   
-  if (handshake && !handshake_ack && error) {
-    data_padding(HANDSHAKE);
-    packet_overhead(HANDSHAKE_ID);
+  if (hasHandshake && !hasHandshakeAck && hasError) {
+    dataPadding(hasHANDSHAKE);
+    packetOverhead(hasHANDSHAKE_ID);
     Serial.write((char*)packet, PACKET_SIZE);
-    sent_time = millis();
-    error = false;
+    sentTime = millis();
+    hasError = false;
   }
 
   // read a packet from FIFO
@@ -284,23 +371,33 @@ void loop() {
     mpu.dmpGetQuaternion(&q, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-    data_set[0] = ypr[2] * 180 / M_PI;
-    data_set[1] = ypr[1] * 180 / M_PI;
-    data_set[2] = ypr[0] * 180 / M_PI;
+    dataSet[0] = ypr[2] * 180 / M_PI;
+    dataSet[1] = ypr[1] * 180 / M_PI;
+    dataSet[2] = ypr[0] * 180 / M_PI;
 
     // display real acceleration, adjusted to remove gravity
     mpu.dmpGetQuaternion(&q, fifoBuffer);
     mpu.dmpGetAccel(&aa, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    data_set[3] = aaReal.x;
-    data_set[4] = aaReal.y;
-    data_set[5] = aaReal.z;
+    dataSet[3] = aaReal.x;
+    dataSet[4] = aaReal.y;
+    dataSet[5] = aaReal.z;
 
     //spam sending of data for motion sensor
-    if (handshake_ack) {
-      send_data_string(data_set);
-      memset(data_set, 0, 6);
+    if (hasHandshakeAck) {
+      bufffer.queueEnqueue(dataSet);
+      isStartOfMove = checkStart0fMove();
+      bufffer.queueDequeue(dataSet);
+      if(isStartOfMove) {
+        sendDataString(dataSet);
+        memset(dataSet, 0, 6);
+        ++SENT_ACTION_PACKETS;
+        if(SENT_ACTION_PACKETS >= NUM_ACTION_PACKETS){
+          SENT_ACTION_PACKETS = 0;
+          isStartOfMove = false;
+        }
+      }
     }
   }
 }

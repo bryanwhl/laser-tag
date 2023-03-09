@@ -64,9 +64,6 @@ total_packet_processed = 0
 motion_msg = Queue(maxsize = 1269)
 vest_msg = Queue(maxsize = 1269)
 gun_msg = Queue(maxsize = 1269)
-reload_flags = [False, False]
-hp_flags = [False, False]
-hp_value = [100, 100]
 
 class ExternalComms(Thread):
     
@@ -292,9 +289,6 @@ class BeetleThread(Thread):
 
     def run(self):
         global motion_msg
-        global reload_flags
-        global hp_flags
-        global hp_value
         self.establish_connection()
         time.sleep(2.0)
         try:
@@ -400,21 +394,24 @@ class BeetleThread(Thread):
             self.packet_0 = False
             self.packet_1 = False
             
-    def update_beetles(self, p, reload_flag, hp_flag, hp_value):
-        if(self.addr == "B0:B1:13:2D:D8:8C"):   # gun 1
-            if(reload_flags[0] == True):
-                count = 0
-                print(CR, "UPDATING GUN STATUS", SPACE, end = END)
-                # Wait for ack packet from bluno
-                while (not self.ACK):
-                    self.send_data("R")
-                    p.waitForNotifications(0.5)
-                    count += 1
-                    if(count >= 5):
-                        raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-                print(CR, "UPDATE ACKED", SPACE, end = END)
-                reload_flags[0] = False
-                self.ACK = False
+    def update_beetles(self, p):
+        global hp_value_p1
+        global hp_value_p2
+        global bullet_count_p1
+        global bullet_count_p2
+        if(self.addr == "B0:B1:13:2D:D8:8C" and bullet_count_p1):   # gun 1
+            count = 0
+            print(CR, "UPDATING GUN STATUS", SPACE, end = END)
+            # Wait for ack packet from bluno
+            while (not self.ACK):
+                self.send_data("R")
+                p.waitForNotifications(0.5)
+                count += 1
+                if(count >= 5):
+                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+            print(CR, "UPDATE ACKED", SPACE, end = END)
+            reload_flags[0] = False
+            self.ACK = False
         elif(self.addr == "B0:B1:13:2D:CD:A2"): # gun 2
             if(reload_flags[1] == True):
                 count = 0
