@@ -87,7 +87,7 @@ class ExternalComms(Thread):
                     break
                 message += _d
             if len(message) == 0:
-                print('no more data from Ultra96')
+                print('no more data from the client')
                 self.serverSocket.close()
                 return
 
@@ -101,7 +101,7 @@ class ExternalComms(Thread):
                     break
                 message += _d
             if len(message) == 0:
-                print('no more data from Ultra96')
+                print('no more data from the client')
                 self.serverSocket.close()
                 return
             decodedMessage = b64decode(message)
@@ -128,15 +128,20 @@ class ExternalComms(Thread):
         global vest_msg
         global gun_msg
         global motion_msg
-        print("connecting to server...")
-        self.clientSocket = socket(AF_INET, SOCK_STREAM)
-        # Create client socket and connect to server
-        self.clientSocket = socket(AF_INET, SOCK_STREAM)
-        self.clientSocket.connect((HOST, PORT))
+        while True:
+            try:
+                print("connecting to server...")
+                self.clientSocket = socket(AF_INET, SOCK_STREAM)
+                # Create client socket and connect to server
+                self.clientSocket = socket(AF_INET, SOCK_STREAM)
+                self.clientSocket.connect((HOST, PORT))
 
-        # Create thread to receive from Ultra96
-        receiver_thread = Thread(target=self.receive_from_ultra, args=(self.clientSocket,))
-        receiver_thread.start()
+                # Create thread to receive from Ultra96
+                receiver_thread = Thread(target=self.receive_from_ultra, args=(self.clientSocket,))
+                receiver_thread.start()
+                break
+            except BrokenPipeError:
+                time.sleep(0.1)
 
         print("connected to server...")
         try:
@@ -261,9 +266,9 @@ class MyDelegate(btle.DefaultDelegate):
                     if (connection_threads[self.connection_index].handshake_completed):
                         connection_threads[self.connection_index].packet_0 = True
                         connection_threads[self.connection_index].packet_0_rcv_time = datetime.now()
-                        connection_threads[self.connection_index].current_data["roll"] = extracted_data[0]
-                        connection_threads[self.connection_index].current_data["pitch"] = extracted_data[1]
-                        connection_threads[self.connection_index].current_data["yaw"] = extracted_data[2]
+                        connection_threads[self.connection_index].current_data["roll"] = float(extracted_data[0])
+                        connection_threads[self.connection_index].current_data["pitch"] = float(extracted_data[1])
+                        connection_threads[self.connection_index].current_data["yaw"] = float(extracted_data[2])
                 elif ((PACKET_ID == '6')):
                     #print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
@@ -271,9 +276,9 @@ class MyDelegate(btle.DefaultDelegate):
                     if (connection_threads[self.connection_index].handshake_completed):
                         connection_threads[self.connection_index].packet_1 = True
                         connection_threads[self.connection_index].packet_1_rcv_time = datetime.now()
-                        connection_threads[self.connection_index].current_data["accX"] = extracted_data[0]      
-                        connection_threads[self.connection_index].current_data["accY"] = extracted_data[1]   
-                        connection_threads[self.connection_index].current_data["accZ"] = extracted_data[2] 
+                        connection_threads[self.connection_index].current_data["accX"] = float(extracted_data[0])      
+                        connection_threads[self.connection_index].current_data["accY"] = float(extracted_data[1])  
+                        connection_threads[self.connection_index].current_data["accZ"] = float(extracted_data[2]) 
                     
                             
             else:
@@ -336,21 +341,21 @@ class BeetleThread(Thread):
     correct_seq_num = False
     rcv_seq_num = "x"
     err_count = 0
+    id = -1
     current_data = {
-        "id"    : "#",
-        "roll"  : "#",
-        "pitch" : "#",
-        "yaw"   : "#",
-        "accX"  : "#",
-        "accY"  : "#",
-        "accZ"  : "#",
+        "roll"  : -9999.0,
+        "pitch" : -9999.0,
+        "yaw"   : -9999.0,
+        "accX"  : -9999.0,
+        "accY"  : -9999.0,
+        "accZ"  : -9999.0
     }
 
     def __init__(self, connection_index, addr):
         Thread.__init__(self)
         self.connection_index = connection_index
         self.addr = addr
-        self.current_data["id"] = str(floor(connection_index/3))
+        self.id = str(floor(connection_index/3))
 
     def run(self):
         global motion_msg
@@ -452,8 +457,14 @@ class BeetleThread(Thread):
             
         #if both halves of packet is received and both halves are close to each other (not necessarily same data set)
         if self.packet_0 and self.packet_1 and abs((self.packet_1_rcv_time - self.packet_0_rcv_time).total_seconds()) < 0.2:
-            print(CR, self.current_data, SPACE, end = END)
-            queue.put(self.current_data)
+            message = "" + str(self.id) + " ["
+            message += str(self.current_data["roll"])+ ","
+            message += str(self.current_data["pitch"]) + ","
+            message += str(self.current_data["yaw"])+ ","
+            message += str(self.current_data["accX"]) + ","
+            message += str(self.current_data["accY"]) + ","
+            message += str(self.current_data["accZ"]) + "]"
+            queue.put(message)
             
             #each data can only be used once
             self.packet_0 = False
