@@ -1,34 +1,48 @@
-from pynq import Overlay
-from pynq import allocate
+# from pynq import Overlay
+# from pynq import allocate
 
-class FPGA():
-    def __init__(self, bit_file_path):
-        self.ol = Overlay(bit_file_path)
+# import pynq.lib.dma
+# from pynq import DefaultIP
+import random
 
-    def run_fpga(self, input):
-        # TODO Build and test the below script for FPGA to retrieve input and do a sample run
+import time
 
-        # assert input.shape == self.ishape_normal
-        # ibuf_folded = input.reshape(self.ishape_folded)
+import numpy as np
+from parse import Parser
+from struct import unpack, pack
 
-        # # pack the input buffer, reversing both SIMD dim and endianness
-        # ibuf_packed = finnpy_to_packed_bytearray(
-        #     ibuf_folded, self.idt, reverse_endian=True, reverse_inner=True
-        # )
-        # # copy the packed data into the PYNQ buffer
-        # # TODO optimization: pack directly into the PYNQ buffer?
-        # np.copyto(self.ibuf_packed_device, ibuf_packed)
+BITFILE_PATH = "./final.bit"
 
-        # # set up the DMA and wait until all transfers complete
-        # self.dma.sendchannel.transfer(self.ibuf_packed_device)
-        # self.dma.recvchannel.transfer(self.obuf_packed)
-        # self.dma.sendchannel.wait()
-        # self.dma.recvchannel.wait()
+class FPGA:
 
-        # # unpack the packed output buffer from accelerator
-        # obuf_folded = packed_bytearray_to_finnpy(
-        #     self.obuf_packed, self.odt, self.oshape_folded, reverse_endian=True, reverse_inner=True
-        # )
+    # def __init__(self, bit_file_path):
+    #     self.ol = Overlay(bit_file_path)
+    #     self.dma = self.ol.axi_dma_0
+    
 
-        # obuf_normal = obuf_folded.reshape(self.oshape_normal)
-        # return obuf_normal
+    def get_mock_output(self, processed_input, mapping):
+      
+        if len(input) < 20:
+            print("function submit_input: input length is less than 20")
+            return []
+        processed_input = Parser.flatten_list()
+
+        random_classification = random.randint(0, 5)
+        return mapping[random_classification]
+
+    # def get_output(self, input):
+    #     start_time = time.time()
+
+    #     for element in range(len(in_buffer)):
+    #         in_buffer[element] = unpack('i', pack('i', second_buffer[element]))[0]
+
+    #     out_buffer = allocate(shape=(4,), dtype=np.int32)
+    #     self.dma.sendchannel.transfer(in_buffer)
+    #     self.dma.recvchannel.transfer(out_buffer)
+    #     self.dma.sendchannel.wait()
+    #     self.dma.recvchannel.wait()
+    #     out = (out_buffer[0:3])
+    #     out = out_buffer.tolist()
+    #     print("output: ", out)
+    #     print("--- %s seconds ---" % (time.time() - start_time))
+

@@ -1,5 +1,5 @@
 from socket import *
-import threading as t
+from threading import Thread
 from base64 import b64encode, b64decode
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -16,6 +16,17 @@ DATA_PORT = 8080
 EVAL_HOST = "192.168.95.247"
 EVAL_PORT = 1515
 
+# Variables for Hardware AI
+WINDOW_SIZE = 20
+INT_TO_ACTION_MAPPING = {
+    0: 'grenade',
+    1: 'shield',
+    2: 'reload',
+    3: 'logout',
+    4: 'nil'
+}
+THRESHOLD = 10000 # Tune this value
+
 # Gamemode - 1P/2P/2P Unrestricted (1/2/3)
 GAMEMODE = int(sys.argv[1])
 # Check if valid GAMEMODE
@@ -24,19 +35,19 @@ if GAMEMODE not in (1, 2, 3):
     exit()
 
 # Init Queues
-gunOneQueue = []
-gunTwoQueue = []
-vestOneQueue = []
-vestTwoQueue = []
-motionOneQueue = []
-motionTwoQueue = []
-actionOneQueue = []
-actionTwoQueue = []
+gun_one_queue = []
+gun_two_queue = []
+vest_one_queue = []
+vest_two_queue = []
+motion_one_queue = []
+motion_two_queue = []
+action_one_queue = []
+action_two_queue = []
 
-messageQueue = []
+message_queue = []
 
 # Init game state
-initGameState = {
+initial_game_state = {
                         "p1": {
                             "hp": 100,
                             "action": "",
@@ -67,11 +78,16 @@ actions = ['shoot', 'hit', 'grenade', 'reload', 'shield', 'logout', 'shield_time
 
 class DataServer:
     def __init__(self, HOST, PORT):
-        self.HOST = HOST
-        self.PORT = PORT
-        self.serverSocket = socket(AF_INET, SOCK_STREAM)
-        self.serverSocket.bind((HOST,PORT))
-        self.client_sockets = []
+        while True:
+            try:
+                self.HOST = HOST
+                self.PORT = PORT
+                self.serverSocket = socket(AF_INET, SOCK_STREAM)
+                self.serverSocket.bind((HOST,PORT))
+                self.client_sockets = []
+                break
+            except BrokenPipeError:
+                sleep(0.1)
 
     def send_to_relay(self, message):
         encodedMessage = message.encode()
@@ -125,12 +141,12 @@ class DataServer:
             decryptedMessage = decryptedMessage.decode()
             x = decryptedMessage.split()
             if(x[0] == "vest"):
-                vestOneQueue.append(1) if x[1] == '0' else vestTwoQueue.append(1)
+                vest_one_queue.append(1) if x[1] == '0' else vest_two_queue.append(1)
             elif(x[0] == "gun"):
-                gunOneQueue.append(1) if x[1] == '0' else  gunTwoQueue.append(1) 
+                gun_one_queue.append(1) if x[1] == '0' else  gun_two_queue.append(1) 
             else:
-                unpacked = eval(decryptedMessage)
-                motionOneQueue.append(unpacked) if unpacked["id"] == '1' else motionTwoQueue.append(unpacked)
+                unpacked = eval(x[1])
+                motion_one_queue.append(unpacked) if x[0] == '1' else motion_two_queue.append(unpacked)
             
             
 
@@ -146,7 +162,7 @@ class DataServer:
                 connSocket, clientAddr = self.serverSocket.accept()
                 self.client_sockets.append(connSocket)
                 print("Connected to ", clientAddr)
-                serverThread = t.Thread(target=self.thread_DataServer_Receiver, args=(connSocket, clientAddr))
+                serverThread = Thread(target=self.thread_DataServer_Receiver, args=(connSocket, clientAddr))
                 serverThread.start()
         except KeyboardInterrupt:
             print("Closing socket")
@@ -154,18 +170,23 @@ class DataServer:
 
 class EvalClient:
     def __init__(self, HOST, PORT):
-        self.HOST = HOST
-        self.PORT = PORT
-        self.clientSocket = socket(AF_INET, SOCK_STREAM)
-        self.clientSocket.connect((HOST, PORT))
+        while True:
+            try:
+                self.HOST = HOST
+                self.PORT = PORT
+                self.clientSocket = socket(AF_INET, SOCK_STREAM)
+                self.clientSocket.connect((HOST, PORT))
+                break
+            except BrokenPipeError:
+                sleep(0.1)
 
     # Eval Client Thread
     def thread_EvalClient(self):
         try:
             while True:
-                # Check if messageQueue has any messages
-                while messageQueue:
-                    message = json.dumps(messageQueue.pop())
+                # Check if message_queue has any messages
+                while message_queue:
+                    message = json.dumps(message_queue.pop())
                     encodedMessage = message.encode()
                     # Encrypt data
                     cipher = AES.new(key, AES.MODE_CBC)
@@ -175,8 +196,8 @@ class EvalClient:
                     finalmsg = len_byte+encryptedMessage_64
                     # Send data
                     self.clientSocket.send(finalmsg)
-                    # Pop from messageQueue
-                    messageQueue.clear()
+                    # Pop from message_queue
+                    message_queue.clear()
 
                     # Receive updated game state (Ground Truth)
                     message = b''
@@ -207,7 +228,7 @@ class EvalClient:
                     decodedMessage = message.decode()
                     # Update game state to ground truth
                     updated_game_state = json.loads(decodedMessage)
-                    ge.gameState = updated_game_state
+                    ge.game_state = updated_game_state
                     # Send updated HP and Bullets to Relay - [HP1, HP2, Bullet1, Bullet2]
                     hp_and_bullet = str([updated_game_state["p1"]["hp"], updated_game_state["p2"]["hp"], updated_game_state["p1"]["bullets"], updated_game_state["p2"]["bullets"]])
                     ds.send_to_relay(hp_and_bullet)
@@ -219,52 +240,53 @@ class EvalClient:
 
 class GameEngine:
     def __init__(self):
-        self.gameState = initGameState
+        self.game_state = initial_game_state
         self.shieldEndTimes = {1: datetime.datetime.now() , 2: datetime.datetime.now()}
         
-    def shootBullet(self, player):
+    def shoot_bullet(self, player):
         if player == 1:
-            self.gameState["p1"]["bullets"] -= 1 if self.gameState["p1"]["bullets"] > 0 else 0
+            self.game_state["p1"]["bullets"] -= 1 if self.game_state["p1"]["bullets"] > 0 else 0
         else:
-            self.gameState["p2"]["bullets"] -= 1 if self.gameState["p2"]["bullets"] > 0 else 0
+            self.game_state["p2"]["bullets"] -= 1 if self.game_state["p2"]["bullets"] > 0 else 0
 
-    def getHit(self, player):
+    def get_hit(self, player):
         if player == 1:
-            self.gameState["p1"]["hp"] -= 10 if self.gameState["p2"]["bullets"] > 0 else 0
+            self.game_state["p1"]["hp"] -= 10 if self.game_state["p2"]["bullets"] > 0 else 0
         else:
-            self.gameState["p2"]["hp"] -= 10 if self.gameState["p1"]["bullets"] > 0 else 0
+            self.game_state["p2"]["hp"] -= 10 if self.game_state["p1"]["bullets"] > 0 else 0
 
-    def throwGrenade(self, player):
+    def throw_grenade(self, player):
         if player == 1:
-            self.gameState["p2"]["hp"] -= 30
+            self.game_state["p2"]["hp"] -= 30
         else:
-            self.gameState["p1"]["hp"] -= 30
+            self.game_state["p1"]["hp"] -= 30
 
-    def reloadGun(self, player):
+    def reload_gun(self, player):
         if player == 1:
-            self.gameState["p1"]["bullets"] = 6 if self.gameState["p1"]["bullets"] == 0 else self.gameState["p1"]["bullets"]
+            self.game_state["p1"]["bullets"] = 6 if self.game_state["p1"]["bullets"] == 0 else self.game_state["p1"]["bullets"]
         else:
-            self.gameState["p2"]["bullets"] = 6 if self.gameState["p2"]["bullets"] == 0 else self.gameState["p2"]["bullets"]
+            self.game_state["p2"]["bullets"] = 6 if self.game_state["p2"]["bullets"] == 0 else self.game_state["p2"]["bullets"]
 
-    def activateShield(self, player):
+    def activate_shield(self, player):
         if player == 1:
-            if self.gameState["p1"]["num_shield"] > 0 and self.gameState["p1"]["shield_time"] == 0:
-                self.gameState["p1"]["shield_health"] = 30
-                self.gameState["p1"]["shield_time"] = 10
-                shieldTimer = t.Timer(10, self.shieldTimeout, args=1)
+            if self.game_state["p1"]["num_shield"] > 0 and self.game_state["p1"]["shield_time"] == 0:
+                self.game_state["p1"]["shield_health"] = 30
+                self.game_state["p1"]["shield_time"] = 10
+                shieldTimer = Thread.Timer(10, self.shield_timeout, args=1)
                 shieldTimer.start()
                 self.shieldEndTimes[1] = datetime.datetime.now() + datetime.timedelta(seconds=10)
         else:
-            if self.gameState["p2"]["num_shield"] > 0 and self.gameState["p2"]["shield_time"] == 0:
-                self.gameState["p2"]["shield_health"] = 30
-                self.gameState["p2"]["shield_time"] = 10
-                shieldTimer = t.Timer(10, self.shieldTimeout, args=2)
+            if self.game_state["p2"]["num_shield"] > 0 and self.game_state["p2"]["shield_time"] == 0:
+                self.game_state["p2"]["shield_health"] = 30
+                self.game_state["p2"]["shield_time"] = 10
+                shieldTimer = Thread.Timer(10, self.shield_timeout, args=2)
                 shieldTimer.start()
                 self.shieldEndTimes[2] = datetime.datetime.now() + datetime.timedelta(seconds=10)
 
-    def respawnPlayersIfDead(self):
-        if self.gameState["p1"]["hp"] <= 0:
-            self.gameState["p1"] = {
+    def respawn_player_if_dead(self):
+        if self.game_state["p1"]["hp"] <= 0:
+            print("Player 1 Respawned")
+            self.game_state["p1"] = {
                             "hp": 100,
                             "action": "",
                             "bullets": 6,
@@ -274,8 +296,9 @@ class GameEngine:
                             "num_deaths": 0,
                             "num_shield": 3
                         }
-        if self.gameState["p2"]["hp"] <= 0:
-            self.gameState["p2"] = {
+        if self.game_state["p2"]["hp"] <= 0:
+            print("Player 2 Respawned")
+            self.game_state["p2"] = {
                             "hp": 100,
                             "action": "",
                             "bullets": 6,
@@ -286,46 +309,62 @@ class GameEngine:
                             "num_shield": 3
                         }
 
-    def shieldTimeout(self, player):
+    def shield_timeout(self, player):
+        print("P", str(player), "Shield Timeout")
         if player == 1:
-            self.gameState["p1"]["shield_health"] = 0
+            self.game_state["p1"]["shield_health"] = 0
         else:
-            self.gameState["p2"]["shield_health"] = 0
+            self.game_state["p2"]["shield_health"] = 0
 
-    def updateShieldTimers(self):
+    def update_shield_timers(self):
         if self.shieldEndTimes[1] > datetime.datetime.now():
             timeLeft = self.shieldEndTimes[1] - datetime.datetime.now()
             timeLeft = int(timeLeft.timedelta.total_seconds())
-            self.gameState["p1"]["shield_time"] = timeLeft
+            self.game_state["p1"]["shield_time"] = timeLeft
         if self.shieldEndTimes[2] > datetime.datetime.now():
             timeLeft = self.shieldEndTimes[2] - datetime.datetime.now()
             timeLeft = int(timeLeft.timedelta.total_seconds())
-            self.gameState["p2"]["shield_time"] = timeLeft
+            self.game_state["p2"]["shield_time"] = timeLeft
 
-    def updateGameState(self, player, action):
+    def handle_player_action(self, player):
+        action = action_one_queue.pop()
+        if action == "grenade":
+            self.update_game_state(player, "grenade")
+        elif action == "shield":
+            self.update_game_state(player, "shield")
+        elif action == "reload":
+            self.update_game_state(player, "reload")
+        elif action == "logout":
+            self.update_game_state(player, "logout")
+        
+    def update_game_state(self, player, action):
+        print("P", str(player), " - ", action)
         # Shoot if player has bullets
         if action == "shoot":
-            self.shootBullet(player)
+            self.shoot_bullet(player)
         # Player loses 10 HP from getting hit
         elif action == "hit":
-            self.getHit(player)
+            self.get_hit(player)
         # Opponent always gets hit by grenade
         elif action == "grenade":
-            self.throwGrenade(player)
+            self.throw_grenade(player)
         # Reload only if player has 0 bullets
         elif action == "reload":
-            self.reloadGun(player)
+            self.reload_gun(player)
         # Give player a shield 
         elif action == "shield":
-            self.activateShield(player)
+            self.activate_shield(player)
         elif action == "shield_timeout":
-            self.shieldTimeout(player)
+            self.shield_timeout(player)
+        elif action == "logout":
+            # Add logout
+            pass
 
         # Respawns player if dead
-        self.respawnPlayersIfDead()
+        self.respawn_player_if_dead()
 
         # Update players' shield timers
-        self.updateShieldTimers()
+        self.update_shield_timers()
 
     # Game Engine Thread
     def thread_GameEngine(self):
@@ -334,30 +373,29 @@ class GameEngine:
         if GAMEMODE == 1:  
             while True:
                 # Waits for player 1 action
-                while not gunOneQueue and not actionOneQueue:
+                while not gun_one_queue and not action_one_queue:
                     pass
 
                 # ADD SLEEP TO WAIT FOR VEST TO GET HIT??
                 sleep(0.5)
 
                 # Check for P2 vest
-                if vestTwoQueue:
-                    self.updateGameState(2, "hit")
+                if vest_two_queue:
+                    self.update_game_state(2, "hit")
 
                 # Check for P1 actions
-                if gunOneQueue:
-                    self.updateGameState(1, "shoot")
-                elif actionOneQueue:
-                    # TO ADD IMPLEMENTATION WITH BRYAN
-                    pass
+                if gun_one_queue:
+                    self.update_game_state(1, "shoot")
+                elif action_one_queue:
+                    self.handle_player_action(1)
 
                 # Clear all action buffers
-                gunOneQueue.clear()
-                actionOneQueue.clear()
-                vestTwoQueue.clear()
+                gun_one_queue.clear()
+                action_one_queue.clear()
+                vest_two_queue.clear()
 
-                # Add to messageQueue to send to eval server
-                messageQueue.append(self.gameState)
+                # Add to message_queue to send to eval server
+                message_queue.append(self.game_state)
                 
 
         # TWO PLAYER GAME ENGINE
@@ -365,44 +403,42 @@ class GameEngine:
         elif GAMEMODE == 2:
             while True:
                 # Waits for player 1 and 2 action
-                while (not gunOneQueue and not actionOneQueue) or (not gunTwoQueue and not actionTwoQueue):
+                while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue):
                     pass
                 
                 # ADD SLEEP TO WAIT FOR VEST TO GET HIT??
                 sleep(0.5)
 
                 # Check for P1 vest
-                if vestOneQueue:
-                    self.updateGameState(1, "hit")
+                if vest_one_queue:
+                    self.update_game_state(1, "hit")
 
                 # Check for P2 vest
-                if vestTwoQueue:
-                    self.updateGameState(2, "hit")
+                if vest_two_queue:
+                    self.update_game_state(2, "hit")
 
                 # Check for P1 actions
-                if gunOneQueue:
-                    self.updateGameState(1, "shoot")
-                elif actionOneQueue:
-                    # TO ADD IMPLEMENTATION WITH BRYAN
-                    pass
+                if gun_one_queue:
+                    self.update_game_state(1, "shoot")
+                elif action_one_queue:
+                    self.handle_player_action(1)
                 
                 # Check for P2 actions
-                if gunTwoQueue:
-                    self.updateGameState(2, "shoot")
-                elif actionTwoQueue:
-                    # TO ADD IMPLEMENTATION WITH BRYAN
-                    pass
+                if gun_two_queue:
+                    self.update_game_state(2, "shoot")
+                elif action_two_queue:
+                    self.handle_player_action(2)
 
                 # Clear all action buffers
-                gunOneQueue.clear()
-                gunTwoQueue.clear()
-                actionOneQueue.clear()
-                actionTwoQueue.clear()
-                vestOneQueue.clear()
-                vestTwoQueue.clear()
+                gun_one_queue.clear()
+                gun_two_queue.clear()
+                action_one_queue.clear()
+                action_two_queue.clear()
+                vest_one_queue.clear()
+                vest_two_queue.clear()
 
-                # Add to messageQueue to send to eval server
-                messageQueue.append(self.gameState)
+                # Add to message_queue to send to eval server
+                message_queue.append(self.game_state)
         
         # TWO PLAYER UNRESTRICTED GAME ENGINE
         elif GAMEMODE == 3:
@@ -411,40 +447,109 @@ class GameEngine:
                 pass
 
 class HardwareAI:
-    def thread_hardware_ai(self):
+
+    def __init__(self):
+        self.queue = []
+
+    def append_10_readings_to_queue(self, readings): # readings: 2D list of 10 readings * 6 attributes
+        for reading in readings:
+            self.queue.append(reading)
+        if len(self.queue) >= 30:
+            self.queue = self.queue[10:]
+
+    def detect_start_of_move(self): # 2D array of 20 * 6 dimensions
+        if len(self.queue) < 20:
+            return ''
+        move_list = self.queue[:20]
+        sum_of_first_10_readings = [0, 0, 0, 0, 0, 0]
+        sum_of_next_10_readings = [0, 0, 0, 0, 0, 0]
+        for attribute_idx in range(6):
+            for reading_no in range(10):
+                sum_of_first_10_readings[attribute_idx] += move_list[reading_no][attribute_idx]
+            for reading_no in range(10, 20):
+                sum_of_next_10_readings[attribute_idx] += move_list[reading_no][attribute_idx]
+
+        difference = 0
+        for i in range(6):
+            difference += abs(sum_of_first_10_readings[i] - sum_of_next_10_readings[i])
+
+        return difference > THRESHOLD
+
+    def predict(self):
+      
+        if len(self.queue) < 20:
+            print("function submit_input: input length is less than 20")
+            return []
+
+        random_classification = random.randint(0, 4)
+        return INT_TO_ACTION_MAPPING[random_classification]
+
+    def thread_hardware_ai_p1(self):
+        global motion_one_queue
         while True:
-            if len(motionOneQueue) >= 10:
-                self.get_action(motionOneQueue[-10:])
-                motionOneQueue = motionOneQueue[:-10]
+            # Append to buffer if motion queue exceeds 10 readings
+            if len(motion_one_queue) >= 10:
+                self.append_10_readings_to_queue(motion_one_queue[-10:])
+                motion_one_queue = motion_one_queue[:-10]
+
+            # Classify action if current buffer detects start of move
+            if self.detect_start_of_move():
+                action_classified = self.predict()
+                if action_classified != "nil":
+                    action_one_queue.append(action_classified)
+                    
+    def thread_hardware_ai_p2(self):
+        global motion_two_queue
+        while True:
+            # Append to buffer if motion queue exceeds 10 readings
+            if len(motion_two_queue) >= 10:
+                self.append_10_readings_to_queue(motion_two_queue[-10:])
+                motion_two_queue = motion_two_queue[:-10]
+
+            # Classify action if current buffer detects start of move
+            if self.detect_start_of_move():
+                action_classified = self.predict()
+                if action_classified != "nil":
+                    action_two_queue.append(action_classified)
 
 def thread_debug():
     while True:
-        print("GUN 1 - ", gunOneQueue)
-        print("GUN 2 - ", gunTwoQueue)
-        print("VEST 1 - ", vestOneQueue)
-        print("VEST 2 - ", vestTwoQueue)
-        print("MOTION 1 - ", motionOneQueue)
-        print("MOTION 2 - ", motionTwoQueue)
+        # print("GUN 1 - ", gun_one_queue)
+        # print("GUN 2 - ", gun_two_queue)
+        # print("VEST 1 - ", vest_one_queue)
+        # print("VEST 2 - ", vest_two_queue)
+        # print("MOTION 1 - ", motion_one_queue)
+        # print("MOTION 2 - ", motion_two_queue)
+        # print("ACTION 1 - ", action_one_queue)
+        # print("ACTION 2 - ", action_two_queue)
+
+        # print("Motion size = ", len(motion_one_queue))
+        print(action_one_queue)
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
 ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
+ai1 = HardwareAI()
+ai2 = HardwareAI()
 
 def main():
     print("GAMEMODE-", GAMEMODE)
 
-    dataServerThread = t.Thread(target=ds.thread_DataServer)
-    evalServerThread = t.Thread(target=ec.thread_EvalClient)
-    gameEngineThread = t.Thread(target=ge.thread_GameEngine)
+    data_server_thread = Thread(target=ds.thread_DataServer)
+    eval_server_thread = Thread(target=ec.thread_EvalClient)
+    game_engine_thread = Thread(target=ge.thread_GameEngine)
+    hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai_p1)
+    hardware_ai_p2_thread = Thread(target=ai1.thread_hardware_ai_p2)
 
+    # debug_thread = Thread(target=thread_debug)
 
-    # debugThread = t.Thread(target=thread_debug)
-
-    dataServerThread.start()
-    evalServerThread.start()
-    gameEngineThread.start()
-    # debugThread.start()
+    data_server_thread.start()
+    eval_server_thread.start()
+    game_engine_thread.start()
+    hardware_ai_p1_thread.start()
+    hardware_ai_p2_thread.start()
+    # debug_thread.start()
     
 
 
