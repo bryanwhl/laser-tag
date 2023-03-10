@@ -243,12 +243,16 @@ class GameEngine:
     def __init__(self):
         self.game_state = initial_game_state
         self.shieldEndTimes = {1: datetime.datetime.now() , 2: datetime.datetime.now()}
+        self.p1_move = False
+        self.p2_move = False
         
     def shoot_bullet(self, player):
         if player == 1:
             self.game_state["p1"]["bullets"] -= 1 if self.game_state["p1"]["bullets"] > 0 else 0
+            self.game_state["p1"]["action"] = "shoot"
         else:
             self.game_state["p2"]["bullets"] -= 1 if self.game_state["p2"]["bullets"] > 0 else 0
+            self.game_state["p2"]["action"] = "shoot"
 
     def take_damage(self, player, damage):
         overflow_damage = damage - self.game_state["p1"]["shield_health"] if player == 1 else damage - self.game_state["p2"]["shield_health"]
@@ -278,16 +282,20 @@ class GameEngine:
             if self.game_state["p1"]["grenades"] > 0:
                 self.take_damage(2, 30)
                 self.game_state["p1"]["grenades"] -= 1
+                self.game_state["p1"]["action"] = "grenade"
         else:
             if self.game_state["p2"]["grenades"] > 0:
                 self.take_damage(1, 30)
                 self.game_state["p2"]["grenades"] -= 1
+                self.game_state["p2"]["action"] = "grenade"
 
     def reload_gun(self, player):
         if player == 1:
             self.game_state["p1"]["bullets"] = 6 if self.game_state["p1"]["bullets"] == 0 else self.game_state["p1"]["bullets"]
+            self.game_state["p1"]["action"] = "reload"
         else:
             self.game_state["p2"]["bullets"] = 6 if self.game_state["p2"]["bullets"] == 0 else self.game_state["p2"]["bullets"]
+            self.game_state["p2"]["action"] = "reload"
 
     def activate_shield(self, player):
         if player == 1:
@@ -295,6 +303,7 @@ class GameEngine:
                 self.game_state["p1"]["shield_health"] = 30
                 self.game_state["p1"]["shield_time"] = 10
                 self.game_state["p1"]["num_shield"] -= 1
+                self.game_state["p1"]["action"] = "shield"
                 shieldTimer = Timer(10, self.shield_timeout, args=(1,))
                 shieldTimer.start()
                 self.shieldEndTimes[1] = datetime.datetime.now() + datetime.timedelta(seconds=10)
@@ -303,6 +312,7 @@ class GameEngine:
                 self.game_state["p2"]["shield_health"] = 30
                 self.game_state["p2"]["shield_time"] = 10
                 self.game_state["p2"]["num_shield"] -= 1
+                self.game_state["p2"]["action"] = "shield"
                 shieldTimer = Timer(10, self.shield_timeout, args=(2,))
                 shieldTimer.start()
                 self.shieldEndTimes[2] = datetime.datetime.now() + datetime.timedelta(seconds=10)
@@ -437,6 +447,16 @@ class GameEngine:
                 while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue):
                     pass
                 
+                # Check for shield and prioritise action
+                if action_one_queue:
+                    if action_one_queue[0] == 'shield':
+                        self.handle_player_action(1)
+                        self.p1_move = True
+                if action_two_queue:
+                    if action_two_queue[0] == 'shield':
+                        self.handle_player_action(2)
+                        self.p2_move = True
+
                 # ADD SLEEP TO WAIT FOR VEST TO GET HIT??
                 sleep(0.5)
 
@@ -448,17 +468,19 @@ class GameEngine:
                 if vest_two_queue:
                     self.update_game_state(2, "hit")
 
-                # Check for P1 actions
-                if gun_one_queue:
-                    self.update_game_state(1, "shoot")
-                elif action_one_queue:
-                    self.handle_player_action(1)
+                # Check for P1 actions if not shield
+                if not self.p1_move:
+                    if gun_one_queue:
+                        self.update_game_state(1, "shoot")
+                    elif action_one_queue:
+                        self.handle_player_action(1)
                 
-                # Check for P2 actions
-                if gun_two_queue:
-                    self.update_game_state(2, "shoot")
-                elif action_two_queue:
-                    self.handle_player_action(2)
+                # Check for P2 actions if not shield
+                if not self.p2_move:
+                    if gun_two_queue:
+                        self.update_game_state(2, "shoot")
+                    elif action_two_queue:
+                        self.handle_player_action(2)
 
                 # Clear all action buffers
                 gun_one_queue.clear()
@@ -467,6 +489,10 @@ class GameEngine:
                 action_two_queue.clear()
                 vest_one_queue.clear()
                 vest_two_queue.clear()
+
+                # Reset moves checks
+                self.p1_move = False
+                self.p2_move = False
 
                 # Add to message_queue to send to eval server
                 message_queue.append(self.game_state)
@@ -560,39 +586,21 @@ def thread_mockP1():
     while True:
         action_one_queue.append('grenade')
         sleep(2)
+        vest_one_queue.append(1)
         gun_one_queue.append(1)
         sleep(2)
-        gun_one_queue.append(1)
-        sleep(2)
-        gun_one_queue.append(1)
-        sleep(2)
-        gun_one_queue.append(1)
-        sleep(2)
-        gun_one_queue.append(1)
-        sleep(2)
-        action_one_queue.append('grenade')
+        action_one_queue.append('reload')
+        vest_one_queue.append(1)
         break
 
 def thread_mockP2():
     while True:
-        action_two_queue.append('reload')
+        action_two_queue.append('shield')
         sleep(2)
-        action_two_queue.append('reload')
-        vest_two_queue.append(1)
+        gun_two_queue.append(1)
+        vest_one_queue.append(1)
         sleep(2)
-        action_two_queue.append('reload')
-        vest_two_queue.append(1)
-        sleep(2)
-        action_two_queue.append('reload')
-        vest_two_queue.append(1)
-        sleep(2)
-        action_two_queue.append('reload')
-        vest_two_queue.append(1)
-        sleep(2)
-        action_two_queue.append('reload')
-        vest_two_queue.append(1)
-        sleep(2)
-        action_two_queue.append('reload')
+        gun_two_queue.append(1)
         break
 
 # Init global objects
