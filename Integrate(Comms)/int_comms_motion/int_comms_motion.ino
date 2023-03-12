@@ -209,20 +209,20 @@ bool detectStartOfMove() {
   volatile float yawDiffSum = 0.0;
   volatile float pitchDiffSum = 0.0;
   volatile float rollDiffSum = 0.0;
-  volatile long accelXDiffSum = 0;
-  volatile long accelYDiffSum = 0;
-  volatile long accelZDiffSum = 0;
+  volatile long accXDiffSum = 0;
+  volatile long accYDiffSum = 0;
+  volatile long accZDiffSum = 0;
   
   for (int i = 0; i < THRESHOLDING_CAPACITY; i++) {
     yawDiffSum += yprDiff[i][0];
     pitchDiffSum += yprDiff[i][1];
     rollDiffSum += yprDiff[i][2];
-    accelXDiffSum += accelDiff[i][0];
-    accelYDiffSum += accelDiff[i][1];
-    accelZDiffSum += accelDiff[i][2];
+    accXDiffSum += accDiff[i][0];
+    accYDiffSum += accDiff[i][1];
+    accZDiffSum += accDiff[i][2];
   }
   
-  if ((abs(yawDiffSum) >= 15 || abs(pitchDiffSum) >= 15 || abs(rollDiffSum) >= 15) && (abs(accelXDiffSum) >= 500 || abs(accelYDiffSum) >= 500 || abs(accelZDiffSum) >= 500)) {
+  if ((abs(yawDiffSum) >= 30 || abs(pitchDiffSum) >= 30 || abs(rollDiffSum) >= 30) && (abs(accXDiffSum) >= 800 || abs(accYDiffSum) >= 800 || abs(accZDiffSum) >= 800)) {
     return true;
   }
   return false;
