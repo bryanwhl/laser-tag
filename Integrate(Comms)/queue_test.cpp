@@ -2,20 +2,25 @@
 #include <cstring>
 using namespace std;
 
-#define QUEUE_CAPACITY 20
+#define THRESHOLDING_CAPACITY 20
 #define ARRAY_SIZE 6
-float THRESHOLD = 10000 * 100;
-float NUM_ACTION_PACKETS = 50;
+float THRESHOLD_ANGEL = 4500;
+float THRESHOLD_ACC = 5000;
+int NUM_ACTION_PACKETS = 50;
+int SENT_ACTION_PACKETS = 0;
+bool isStartOfMove = false;
 
-bool startOfMove = false;
-
-struct Queuee {
+typedef struct Queuee {
     int front, capacity, size;
-    float internalQueue[QUEUE_CAPACITY][ARRAY_SIZE];
+    float internalQueue[THRESHOLDING_CAPACITY][ARRAY_SIZE] = {0};
     Queuee() {
         front = 0;
         size = 0;
-        capacity = QUEUE_CAPACITY;
+        capacity = THRESHOLDING_CAPACITY;
+    }
+
+    bool isFull() {
+      return size == capacity;
     }
  
     void queueEnqueue(float data[6]) {
@@ -23,7 +28,7 @@ struct Queuee {
             return;
         }
          
-        int index = (front+size) % 20;
+        int index = (front+size) % THRESHOLDING_CAPACITY;
         ++size;
         memcpy(internalQueue[index], data, ARRAY_SIZE * sizeof(float));
         return;
@@ -35,32 +40,32 @@ struct Queuee {
         }
         
         memcpy(data, internalQueue[front], sizeof(internalQueue[front]));
-        front = (front+1) % 20;
+        front = (front+1) % THRESHOLDING_CAPACITY;
         --size;
         return;
     }
     
     void getSumOfFirstHalf(float data[6]) {
         float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-	int index = (front + 0) % 20;
-        for(int i = 0; i < 10; ++i) {
+	      int index = (front + 0) % THRESHOLDING_CAPACITY;
+        for(int i = 0; i < THRESHOLDING_CAPACITY / 2; ++i) {
             for(int j = 0; j < ARRAY_SIZE; ++j) {
                 currentSum[j] += internalQueue[index][j];
             }
-	    ++index;
+	          index = (front + i) % THRESHOLDING_CAPACITY;
         }
         memcpy(data, currentSum, sizeof(currentSum));
     }
     
     void getSumOfSecondHalf(float data[ARRAY_SIZE]) {
         float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-	int index = (front + 0) % 20;
-        for(int i = 10; i < 20; ++i) {
+	      int index = (front + 0) % THRESHOLDING_CAPACITY;
+        for(int i = THRESHOLDING_CAPACITY / 2; i < THRESHOLDING_CAPACITY; ++i) {
             for(int j = 0; j < ARRAY_SIZE; ++j) {
-                index = (front + i) % 20;
+                
                 currentSum[j] += internalQueue[index][j];
             }
-	    ++index;
+	          index = (front + i) % THRESHOLDING_CAPACITY;
         }
         memcpy(data, currentSum, sizeof(currentSum));
     }
@@ -75,22 +80,27 @@ struct Queuee {
         cout << "\n";
       }
     }
-};    
+} Queuee;    
 
-Queuee buffer;
+Queuee buffer = Queuee();
 
 bool checkStart0fMove() { //2d array of 20 by 6 dimension
-    float difference = 0;
+    float differenceAngel = 0;
+    float differenceAcc = 0;
     float sumOfFirstHalf[6] = {0, 0, 0, 0, 0, 0};
     float sumOfSecondHalf[6] = {0, 0, 0, 0, 0, 0};
     
     buffer.getSumOfFirstHalf(sumOfFirstHalf);
     buffer.getSumOfSecondHalf(sumOfSecondHalf);
     
-    for(int i = 0; i < 6; ++i) {
-        difference += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
+    for(int i = 0; i < 3; ++i) {
+        differenceAngel += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
     }
-    return (long)difference > THRESHOLD;
+    for(int i = 3; i < 6; ++i) {
+        differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
+    }
+
+    return differenceAcc > THRESHOLD_ACC || differenceAngel > THRESHOLD_ANGEL;
 }
 
 void print_array(float hehe[6]) {
@@ -132,6 +142,7 @@ int main(){
     buffer.queueEnqueue(dummy_09);
     buffer.queueEnqueue(dummy_10);
     buffer.queueEnqueue(dummy_11);
+    cout << buffer.isFull() << '\n';
     buffer.queueEnqueue(dummy_12);
     buffer.queueEnqueue(dummy_13);
     buffer.queueEnqueue(dummy_14);
@@ -141,8 +152,10 @@ int main(){
     buffer.queueEnqueue(dummy_18);
     buffer.queueEnqueue(dummy_19);
     buffer.queueEnqueue(dummy_20);
+    cout << buffer.isFull() << '\n';
     buffer.queueDequeue(dummy_01);
     buffer.queueDequeue(dummy_02);
+    cout << buffer.isFull() << '\n';
     buffer.queueDequeue(dummy_03);
     buffer.queueDequeue(dummy_04);
     buffer.queueEnqueue(dummy_01);
@@ -155,6 +168,7 @@ int main(){
     buffer.queueEnqueue(dummy_04);
     buffer.printQueueContent();
     cout << checkStart0fMove() << '\n';
+    cout << buffer.isFull() << '\n';
 	return 0;
 }
 
