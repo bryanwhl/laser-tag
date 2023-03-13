@@ -54,7 +54,7 @@ START OF THRESHOLDING (BRYAN)
 -------------------------------------------------------------------------------------*/
 #define THRESHOLDING_CAPACITY 20
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 4500;
+float THRESHOLD_ANGEL = 500;
 float THRESHOLD_ACC = 5000;
 int NUM_ACTION_PACKETS = 50;
 int SENT_ACTION_PACKETS = 0;
@@ -119,6 +119,10 @@ typedef struct Queuee {
         }
         memcpy(data, currentSum, sizeof(currentSum));
     }
+
+    void resetQueue() {
+      memset( internalQueue, 0, sizeof(internalQueue) );
+    }
 } Queuee;    
 
 Queuee bufffer = Queuee();
@@ -138,7 +142,7 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
     for(int i = 3; i < 6; ++i) {
         differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
     }
-
+    
     return differenceAcc > THRESHOLD_ACC && differenceAngel > THRESHOLD_ANGEL;
 }
 
@@ -480,18 +484,19 @@ void loop() {
     dataSet[5] = aaReal.z / 10;
 
     //spam sending of data for motion sensor
-    if (hasHandshakeAck) {
+    //if (hasHandshakeAck) {
+    if (true) {
       bufffer.queueEnqueue(dataSet);
       if(bufffer.isFull() && !isStartOfMove) {
         isStartOfMove = checkStart0fMove();
         bufffer.queueDequeue(dataSet);
       }
       if(isStartOfMove) {
-        Serial.println(SENT_ACTION_PACKETS);
-        //sendDataString(dataSet);
-        //memset(dataSet, 0, 6);
+        sendDataString(dataSet);
+        memset(dataSet, 0, 6);
         ++SENT_ACTION_PACKETS;
         if(SENT_ACTION_PACKETS >= NUM_ACTION_PACKETS){
+          bufffer.resetQueue();
           SENT_ACTION_PACKETS = 0;
           isStartOfMove = false;
         }
