@@ -9,6 +9,15 @@ import random
 import datetime
 from time import sleep
 import sys
+from pynq import Overlay
+
+import pynq.lib.dma
+from pynq import DefaultIP
+from pynq import allocate
+import numpy as np
+from struct import unpack, pack
+import time
+
 
 # Init connection settings
 DATA_HOST = gethostname()
@@ -512,6 +521,8 @@ class HardwareAI:
 
     def __init__(self):
         self.queue = []
+        self.overlay = Overlay('./mar_13.bit')
+        self.dma = self.overlay.axi_dma_0
 
     def append_10_readings_to_queue(self, readings): # readings: 2D list of 10 readings * 6 attributes
         for reading in readings:
@@ -543,8 +554,23 @@ class HardwareAI:
             print("function submit_input: input length is less than 20")
             return []
 
-        random_classification = random.randint(0, 4)
-        return INT_TO_ACTION_MAPPING[random_classification]
+        in_buffer = allocate(shape=(120,), dtype=np.int32)
+        out_buffer = allocate(shape=(5,), dtype=np.int32)
+
+        for i in range(20):
+            for j in range(6):
+                in_buffer[i] = unpack('i', pack('f', self.queue[i][j]))[0]
+
+        self.dma.sendchannel.transfer(in_buffer)
+        self.dma.recvchannel.transfer(out_buffer)
+        self.dma.sendchannel.wait()
+        self.dma.recvchannel.wait()
+
+        out = (out_buffer[0:4])
+        out = out.tolist()
+
+        predicted_int = out.index(max(out))
+        return INT_TO_ACTION_MAPPING[predicted_int]
 
     def thread_hardware_ai_p1(self):
         global motion_one_queue
