@@ -9,8 +9,7 @@
 const int RECV_PIN = 3;
 IRrecv irrecv(RECV_PIN);
 decode_results results;
-int hp;
-char hpExternal = 'X';
+char hpLevel = 'X';
 
 //constants
 char HANDSHAKE[]  = "HANDSHAKE";
@@ -26,6 +25,7 @@ uint8_t data[16];
 uint8_t packet[20];
 float data_set[6];
 int seq_num = 0;
+int hp = 100;
 
 //boolean checks for logic program
 //check that data transfer has begin
@@ -157,9 +157,12 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      default: 
-        hpExternal = cmd;
+      default:  
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
+        hp = (int)((char)cmd - 'a') * 10;
         break;
     }
   }
@@ -207,9 +210,20 @@ void loop() {
 
   if (irrecv.decode()) {
     activation_count += 1;
+    delay(300);
     irrecv.resume();
+    hp -= 10;
+    if(hp >= 70){
+      hpLevel = 'h';
+    } else if (hp >= 40) {
+      hpLevel = 'm';
+    } else if (hp >= 0){
+      hpLevel = 'l';
+    } else {
+      hpLevel = 'x';
+    }
   }
-  switch (hpExternal) {
+  switch (hpLevel) {
     case 'l': // hp >= 0
       digitalWrite(14, LOW);
       digitalWrite(15, LOW);
@@ -225,11 +239,15 @@ void loop() {
       digitalWrite(15, HIGH);
       digitalWrite(17, HIGH);
       break;
+    case 'x': // hp >= 70
+      digitalWrite(14, LOW);
+      digitalWrite(15, HIGH);
+      digitalWrite(17, LOW);
+      break;
      default: 
       digitalWrite(14, HIGH);
       digitalWrite(15, LOW);
       digitalWrite(17, HIGH);
       break;
   }
-  delay(300);
 }

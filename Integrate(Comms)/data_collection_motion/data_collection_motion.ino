@@ -177,9 +177,9 @@ void send_data_string(float data_set[]) {
   long roll  =  (long)(data_set[0] * 100) % 100000;
   long pitch =  (long)(data_set[1] * 100) % 100000;
   long yaw   =  (long)(data_set[2] * 100) % 100000;
-  long accX  =  (long)(data_set[3] * 100) % 100000;
-  long accY  =  (long)(data_set[4] * 100) % 100000;
-  long accZ  =  (long)(data_set[5] * 100) % 100000;
+  long accX  =  (long)(data_set[3] * 10) % 100000;
+  long accY  =  (long)(data_set[4] * 10) % 100000;
+  long accZ  =  (long)(data_set[5] * 10) % 100000;
   int index;
   char sign[2];
   char temp_data[16];
