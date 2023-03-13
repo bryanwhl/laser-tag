@@ -139,7 +139,7 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
         differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
     }
 
-    return differenceAcc > THRESHOLD_ACC || differenceAngel > THRESHOLD_ANGEL;
+    return differenceAcc > THRESHOLD_ACC && differenceAngel > THRESHOLD_ANGEL;
 }
 
 /*-------------------------------------------------------------------------------------
@@ -487,8 +487,9 @@ void loop() {
         bufffer.queueDequeue(dataSet);
       }
       if(isStartOfMove) {
-        sendDataString(dataSet);
-        memset(dataSet, 0, 6);
+        Serial.println(SENT_ACTION_PACKETS);
+        //sendDataString(dataSet);
+        //memset(dataSet, 0, 6);
         ++SENT_ACTION_PACKETS;
         if(SENT_ACTION_PACKETS >= NUM_ACTION_PACKETS){
           SENT_ACTION_PACKETS = 0;
