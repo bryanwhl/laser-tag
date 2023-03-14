@@ -215,7 +215,7 @@ def main():
     packet_received = 0
     
     print("Collecting data")
-    with open('./expected_data_noisee.csv', 'w', encoding='UTF8', newline='') as f:
+    with open('./expected_data_noisee.csv', 'a', encoding='UTF8', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
     

@@ -83,7 +83,6 @@ void data_padding(char msg[]) {
   }
 }
 
-//Attach packet_id, packet_no and crc to data
 void packet_overhead(char packet_id) {
   uint8_t result8 = crcx::crc8(data, 16);
   String temp = String(result8, HEX);
@@ -91,24 +90,21 @@ void packet_overhead(char packet_id) {
   temp.toCharArray(crc, 3);
   int j = 0;
 
-  //heading for packet
   packet[0] = BEETLE_ID;
   packet[1] = packet_id;
 
-  // insert data into body of packet
   for (int i = 2; i < 18; i = i + 1) {
     packet[i] = data[j];
     j = j + 1;
   }
 
-  // add crc to last 2 bit of packet
   if (strlen(crc) == 1) {
     packet[18] = '0';
     packet[19] = crc[0];
   } else {
     packet[18] = crc[0];
     packet[19] = crc[1];
-  }//*/
+  }
 }
 
 void loop() {
@@ -160,20 +156,60 @@ void loop() {
         data_sent = false;
         seq_num = 0;
         break;
-      case 'W' ://Received Wakeup Call
+      case 'W' :
         data_padding(WAKEUP);
         packet_overhead(WAKEUP_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      case 'R' :
+      case 'a' :
         data_padding(ACK);
         packet_overhead(ACK_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
-        if(bulletCount == 0) {
-          bulletCount = 6;
-        }
+        bulletCount = 0;
+        break;
+      case 'b' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 1;
+        break;
+      case 'c' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 2;
+        break;
+      case 'd' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 3;
+        break;
+      case 'e' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 4;
+        break;
+      case 'f' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 5;
+        break;
+      case 'g' :
+        data_padding(ACK);
+        packet_overhead(ACK_ID);
+        Serial.write((char*)packet, PACKET_SIZE);
+        memset(data, 0, 16);
+        bulletCount = 6;
         break;
       default: break;
     }
@@ -220,7 +256,7 @@ void loop() {
 
   buttonState = digitalRead(button_pin);
 
-  if (bulletCount > 0 && buttonState == 0) {
+  if (buttonState == 0) {
     activation_count += 1;
 
     /*
@@ -232,13 +268,21 @@ void loop() {
     //irsend.sendNEC(0x1111,0x22,true);
     digitalWrite(13, HIGH);
     bulletCount -= 1;
-    delay(200);
+    if(bulletCount <= 0) {
+      tone(5,500,600);
+      bulletCount -= 1;
+    }
+    else {
+      tone(5,784,300);
+//      delay(100);
+//      tone(5,196,300);
+    }
+    delay(500);
     /*
     display.clearDisplay();
     display.setCursor(30, 30);
     display.println(bulletCount);
     display.display(); //*/
     digitalWrite(13, LOW); 
-    delay(100);
   }
 }
