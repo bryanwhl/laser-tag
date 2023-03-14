@@ -54,11 +54,14 @@ START OF THRESHOLDING (BRYAN)
 -------------------------------------------------------------------------------------*/
 #define THRESHOLDING_CAPACITY 20
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 500;
-float THRESHOLD_ACC = 5000;
-int NUM_ACTION_PACKETS = 50;
-int SENT_ACTION_PACKETS = 0;
+float THRESHOLD_ANGEL = 450;
+float THRESHOLD_ACC = 4000;
+long DURATION_ACTION_PACKETS = 1700;
+long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
+
+volatile float DIFF_ACC = -1269.0;
+volatile float DIFF_YPR = -1269.0;
 
 typedef struct Queuee {
     int front, capacity, size;
@@ -122,6 +125,7 @@ typedef struct Queuee {
 
     void resetQueue() {
       memset( internalQueue, 0, sizeof(internalQueue) );
+      size = 0;
     }
 } Queuee;    
 
@@ -142,6 +146,10 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
     for(int i = 3; i < 6; ++i) {
         differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
     }
+
+    DIFF_ACC = differenceAcc;
+    DIFF_YPR = differenceAngel;
+    
     
     return differenceAcc > THRESHOLD_ACC && differenceAngel > THRESHOLD_ANGEL;
 }
@@ -355,15 +363,16 @@ void packetOverhead(char packetId) {
 }
 
 //function to send 1 dataset of motion sensor values string version
-void sendDataString(float dataSet[]) {
+void sendDataString(float dataSet0, float dataSet1, float dataSet2, float dataSet3, float dataSet4, float dataSet5) {
   int signs;
   // convert all value to 5 digit integer
-  long roll  =  (long)(dataSet[0] * 100) % 100000;
-  long pitch =  (long)(dataSet[1] * 100) % 100000;
-  long yaw   =  (long)(dataSet[2] * 100) % 100000;
-  long accX  =  (long)(dataSet[3] * 100) % 100000;
-  long accY  =  (long)(dataSet[4] * 100) % 100000;
-  long accZ  =  (long)(dataSet[5] * 100) % 100000;
+  long roll  =  (long)(dataSet0 * 100) % 100000;
+  long pitch =  (long)(dataSet1 * 100) % 100000;
+  long yaw   =  (long)(dataSet2 * 100) % 100000;
+  long accX  =  (long)(dataSet3 * 100) % 100000;
+  long accY  =  (long)(dataSet4 * 100) % 100000;
+  long accZ  =  (long)(dataSet5 * 100) % 100000;
+  
   int index;
   char sign[2];
   char tempData[16];
@@ -383,13 +392,12 @@ void sendDataString(float dataSet[]) {
   insertDigit(tempData, index, roll);
   insertDigit(tempData, index, pitch);
   insertDigit(tempData, index, yaw);
-
   dataPadding(tempData);
   packetOverhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
   
-  delay(10);
+  delay(40);
 
   //packet 1
   signs = 0;
@@ -452,8 +460,6 @@ void loop() {
       default: break;
     }
   }
-
-  delay(20);
   
   if (hasHandshake && !hasHandshakeAck && hasError) {
     dataPadding(HANDSHAKE);
@@ -484,21 +490,29 @@ void loop() {
     dataSet[5] = aaReal.z / 10;
 
     //spam sending of data for motion sensor
-    //if (hasHandshakeAck) {
-    if (true) {
+    if (hasHandshakeAck) {
+    //if (true) {
       bufffer.queueEnqueue(dataSet);
       if(bufffer.isFull() && !isStartOfMove) {
         isStartOfMove = checkStart0fMove();
+        if(isStartOfMove) {
+          START_ACTION_PACKETS = millis();
+        }
+        /*
+        Serial.print(DIFF_ACC);
+        Serial.print("--");
+        Serial.println(DIFF_YPR);//*/
         bufffer.queueDequeue(dataSet);
       }
-      if(isStartOfMove) {
-        sendDataString(dataSet);
-        memset(dataSet, 0, 6);
-        ++SENT_ACTION_PACKETS;
-        if(SENT_ACTION_PACKETS >= NUM_ACTION_PACKETS){
+      if(bufffer.isFull() && isStartOfMove) {
+        
+        bufffer.queueDequeue(dataSet);
+        sendDataString(dataSet[0], dataSet[1], dataSet[2], dataSet[3], dataSet[4], dataSet[5]);
+        //memset(dataSet, 0, 6);
+        if( (millis() - START_ACTION_PACKETS) >= DURATION_ACTION_PACKETS ){
           bufffer.resetQueue();
-          SENT_ACTION_PACKETS = 0;
           isStartOfMove = false;
+          //Serial.println("Ended move");
         }
       }
     }
