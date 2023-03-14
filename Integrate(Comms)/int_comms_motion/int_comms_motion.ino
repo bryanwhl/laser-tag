@@ -50,12 +50,12 @@ unsigned long TIMEOUT = 1000;
 unsigned long sentTime;
 
 /*-------------------------------------------------------------------------------------
-START OF THRESHOLDING (BRYAN)
--------------------------------------------------------------------------------------*/
-#define THRESHOLDING_CAPACITY 20
+  START OF THRESHOLDING (BRYAN)
+  -------------------------------------------------------------------------------------*/
+#define THRESHOLDING_CAPACITY 10
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 450;
-float THRESHOLD_ACC = 4000;
+float THRESHOLD_ANGEL = 200;
+float THRESHOLD_ACC = 1950;
 long DURATION_ACTION_PACKETS = 1700;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
@@ -64,109 +64,109 @@ volatile float DIFF_ACC = -1269.0;
 volatile float DIFF_YPR = -1269.0;
 
 typedef struct Queuee {
-    int front, capacity, size;
-    float internalQueue[THRESHOLDING_CAPACITY][ARRAY_SIZE] = {0};
-    Queuee() {
-        front = 0;
-        size = 0;
-        capacity = THRESHOLDING_CAPACITY;
+  int front, capacity, size;
+  float internalQueue[THRESHOLDING_CAPACITY][ARRAY_SIZE] = {0};
+  Queuee() {
+    front = 0;
+    size = 0;
+    capacity = THRESHOLDING_CAPACITY;
+  }
+
+  bool isFull() {
+    return size == capacity;
+  }
+
+  void queueEnqueue(float data[6]) {
+    if (size >= capacity) {
+      return;
     }
 
-    bool isFull() {
-      return size == capacity;
-    }
- 
-    void queueEnqueue(float data[6]) {
-        if (size >= capacity) {
-            return;
-        }
-         
-        int index = (front+size) % THRESHOLDING_CAPACITY;
-        ++size;
-        memcpy(internalQueue[index], data, ARRAY_SIZE * sizeof(float));
-        return;
-    }
- 
-    void queueDequeue(float data[ARRAY_SIZE]) {
-        if (size == 0) {
-            return;
-        }
-        
-        memcpy(data, internalQueue[front], sizeof(internalQueue[front]));
-        front = (front+1) % THRESHOLDING_CAPACITY;
-        --size;
-        return;
-    }
-    
-    void getSumOfFirstHalf(float data[6]) {
-        float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-	      int index = (front + 0) % THRESHOLDING_CAPACITY;
-        for(int i = 0; i < THRESHOLDING_CAPACITY / 2; ++i) {
-            for(int j = 0; j < ARRAY_SIZE; ++j) {
-                currentSum[j] += internalQueue[index][j];
-            }
-	          index = (front + i) % THRESHOLDING_CAPACITY;
-        }
-        memcpy(data, currentSum, sizeof(currentSum));
-    }
-    
-    void getSumOfSecondHalf(float data[ARRAY_SIZE]) {
-        float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-	      int index = (front + 0) % THRESHOLDING_CAPACITY;
-        for(int i = THRESHOLDING_CAPACITY / 2; i < THRESHOLDING_CAPACITY; ++i) {
-            for(int j = 0; j < ARRAY_SIZE; ++j) {
-                
-                currentSum[j] += internalQueue[index][j];
-            }
-	          index = (front + i) % THRESHOLDING_CAPACITY;
-        }
-        memcpy(data, currentSum, sizeof(currentSum));
+    int index = (front + size) % THRESHOLDING_CAPACITY;
+    ++size;
+    memcpy(internalQueue[index], data, ARRAY_SIZE * sizeof(float));
+    return;
+  }
+
+  void queueDequeue(float data[ARRAY_SIZE]) {
+    if (size == 0) {
+      return;
     }
 
-    void resetQueue() {
-      memset( internalQueue, 0, sizeof(internalQueue) );
-      size = 0;
+    memcpy(data, internalQueue[front], sizeof(internalQueue[front]));
+    front = (front + 1) % THRESHOLDING_CAPACITY;
+    --size;
+    return;
+  }
+
+  void getSumOfFirstHalf(float data[6]) {
+    float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
+    int index = (front + 0) % THRESHOLDING_CAPACITY;
+    for (int i = 0; i < THRESHOLDING_CAPACITY / 2; ++i) {
+      for (int j = 0; j < ARRAY_SIZE; ++j) {
+        currentSum[j] += internalQueue[index][j];
+      }
+      index = (front + i) % THRESHOLDING_CAPACITY;
     }
-} Queuee;    
+    memcpy(data, currentSum, sizeof(currentSum));
+  }
+
+  void getSumOfSecondHalf(float data[ARRAY_SIZE]) {
+    float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
+    int index = (front + 0) % THRESHOLDING_CAPACITY;
+    for (int i = THRESHOLDING_CAPACITY / 2; i < THRESHOLDING_CAPACITY; ++i) {
+      for (int j = 0; j < ARRAY_SIZE; ++j) {
+
+        currentSum[j] += internalQueue[index][j];
+      }
+      index = (front + i) % THRESHOLDING_CAPACITY;
+    }
+    memcpy(data, currentSum, sizeof(currentSum));
+  }
+
+  void resetQueue() {
+    memset( internalQueue, 0, sizeof(internalQueue) );
+    size = 0;
+  }
+} Queuee;
 
 Queuee bufffer = Queuee();
 
 bool checkStart0fMove() { //2d array of 20 by 6 dimension
-    float differenceAngel = 0;
-    float differenceAcc = 0;
-    float sumOfFirstHalf[6] = {0, 0, 0, 0, 0, 0};
-    float sumOfSecondHalf[6] = {0, 0, 0, 0, 0, 0};
-    
-    bufffer.getSumOfFirstHalf(sumOfFirstHalf);
-    bufffer.getSumOfSecondHalf(sumOfSecondHalf);
-    
-    for(int i = 0; i < 3; ++i) {
-        differenceAngel += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
-    }
-    for(int i = 3; i < 6; ++i) {
-        differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
-    }
+  float differenceAngel = 0;
+  float differenceAcc = 0;
+  float sumOfFirstHalf[6] = {0, 0, 0, 0, 0, 0};
+  float sumOfSecondHalf[6] = {0, 0, 0, 0, 0, 0};
 
-    DIFF_ACC = differenceAcc;
-    DIFF_YPR = differenceAngel;
-    
-    
-    return differenceAcc > THRESHOLD_ACC && differenceAngel > THRESHOLD_ANGEL;
+  bufffer.getSumOfFirstHalf(sumOfFirstHalf);
+  bufffer.getSumOfSecondHalf(sumOfSecondHalf);
+
+  for (int i = 0; i < 3; ++i) {
+    differenceAngel += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
+  }
+  for (int i = 3; i < 6; ++i) {
+    differenceAcc += abs(sumOfFirstHalf[i] - sumOfSecondHalf[i]);
+  }
+
+  DIFF_ACC = differenceAcc;
+  DIFF_YPR = differenceAngel;
+
+
+  return differenceAcc > THRESHOLD_ACC || differenceAngel > THRESHOLD_ANGEL;
 }
 
 /*-------------------------------------------------------------------------------------
-END OF THRESHOLDING
--------------------------------------------------------------------------------------*/
+  END OF THRESHOLDING
+  -------------------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------------------
-START OF THRESHOLDING FROM GITHUB
--------------------------------------------------------------------------------------*/
+  START OF THRESHOLDING FROM GITHUB
+  -------------------------------------------------------------------------------------*/
 volatile float yprDiff[THRESHOLDING_CAPACITY][3] = { 0.0 };
 volatile float accDiff[THRESHOLDING_CAPACITY][3] = { 0.0 };
 volatile int yprIndex = 0;
 volatile int accIndex = 0;
 
-volatile float yprBefore[3] = {0.0, 0.0, 0.0}; 
+volatile float yprBefore[3] = {0.0, 0.0, 0.0};
 volatile float yprCurrent[3] = {0.0, 0.0, 0.0};
 volatile float yawDiff = 0.0;
 volatile float pitchDiff = 0.0;
@@ -185,7 +185,7 @@ void updateYpr(float y, float p, float r) {
   yprCurrent[0] = y;
   yprCurrent[0] = p;
   yprCurrent[0] = r;
-} 
+}
 
 void updateAcc(float y, float p, float r) {
   accBefore[0] = accCurrent[0];
@@ -194,19 +194,19 @@ void updateAcc(float y, float p, float r) {
   accCurrent[0] = y;
   accCurrent[0] = p;
   accCurrent[0] = r;
-} 
+}
 
 void updateThresholdBuffer() {
-  // Compute the differences between these 2 YPR values to detect if there is a sudden movement 
+  // Compute the differences between these 2 YPR values to detect if there is a sudden movement
   yawDiff = yprBefore[0] - yprCurrent[0];
   pitchDiff = yprBefore[1] - yprCurrent[1];
   rollDiff = yprBefore[2] - yprCurrent[2];
   accXDiff = accBefore[0] - accCurrent[0];
   accYDiff = accBefore[1] - accCurrent[1];
-  accZDiff = accBefore[2] - accCurrent[2]; 
+  accZDiff = accBefore[2] - accCurrent[2];
 
   // Store the differences for ypr and accel into yprDiff and accelDiff into the circular buffer
-  yprDiff[yprIndex][0] = abs(yawDiff); 
+  yprDiff[yprIndex][0] = abs(yawDiff);
   yprDiff[yprIndex][1] = abs(pitchDiff);
   yprDiff[yprIndex][2] = abs(rollDiff);
   yprIndex = (yprIndex + 1) % THRESHOLDING_CAPACITY;
@@ -224,7 +224,7 @@ bool detectStartOfMove() {
   volatile long accXDiffSum = 0;
   volatile long accYDiffSum = 0;
   volatile long accZDiffSum = 0;
-  
+
   for (int i = 0; i < THRESHOLDING_CAPACITY; i++) {
     yawDiffSum += yprDiff[i][0];
     pitchDiffSum += yprDiff[i][1];
@@ -233,7 +233,7 @@ bool detectStartOfMove() {
     accYDiffSum += accDiff[i][1];
     accZDiffSum += accDiff[i][2];
   }
-  
+
   if ((abs(yawDiffSum) >= 30 || abs(pitchDiffSum) >= 30 || abs(rollDiffSum) >= 30) && (abs(accXDiffSum) >= 800 || abs(accYDiffSum) >= 800 || abs(accZDiffSum) >= 800)) {
     return true;
   }
@@ -241,8 +241,8 @@ bool detectStartOfMove() {
 }
 
 /*-------------------------------------------------------------------------------------
-END OF GITHUB THRESHOLD
--------------------------------------------------------------------------------------*/
+  END OF GITHUB THRESHOLD
+  -------------------------------------------------------------------------------------*/
 
 void setup() {
   Serial.begin(115200);
@@ -264,7 +264,7 @@ void setup() {
   mpu.setYGyroOffset(-30);
   mpu.setZGyroOffset(-1);
   mpu.setZAccelOffset(2402);
-  
+
   if (devStatus == 0) {
     // Calibration Time: generate offsets and calibrate our MPU6050
     mpu.CalibrateAccel(6);
@@ -372,7 +372,7 @@ void sendDataString(float dataSet0, float dataSet1, float dataSet2, float dataSe
   long accX  =  (long)(dataSet3 * 100) % 100000;
   long accY  =  (long)(dataSet4 * 100) % 100000;
   long accZ  =  (long)(dataSet5 * 100) % 100000;
-  
+
   int index;
   char sign[2];
   char tempData[16];
@@ -396,7 +396,7 @@ void sendDataString(float dataSet0, float dataSet1, float dataSet2, float dataSe
   packetOverhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
-  
+
   delay(40);
 
   //packet 1
@@ -460,7 +460,7 @@ void loop() {
       default: break;
     }
   }
-  
+
   if (hasHandshake && !hasHandshakeAck && hasError) {
     dataPadding(HANDSHAKE);
     packetOverhead(HANDSHAKE_ID);
@@ -491,27 +491,28 @@ void loop() {
 
     //spam sending of data for motion sensor
     if (hasHandshakeAck) {
-    //if (true) {
+      //if (true) {
       bufffer.queueEnqueue(dataSet);
-      if(bufffer.isFull() && !isStartOfMove) {
+      if (bufffer.isFull() && !isStartOfMove) {
         isStartOfMove = checkStart0fMove();
-        if(isStartOfMove) {
+        if (isStartOfMove) {
           START_ACTION_PACKETS = millis();
         }
         /*
-        Serial.print(DIFF_ACC);
-        Serial.print("--");
-        Serial.println(DIFF_YPR);//*/
+          Serial.print(DIFF_ACC);
+          Serial.print("--");
+          Serial.println(DIFF_YPR);//*/
         bufffer.queueDequeue(dataSet);
       }
-      if(bufffer.isFull() && isStartOfMove) {
-        
+      if (bufffer.isFull() && isStartOfMove) {
+
         bufffer.queueDequeue(dataSet);
         sendDataString(dataSet[0], dataSet[1], dataSet[2], dataSet[3], dataSet[4], dataSet[5]);
         //memset(dataSet, 0, 6);
-        if( (millis() - START_ACTION_PACKETS) >= DURATION_ACTION_PACKETS ){
+        if ( (millis() - START_ACTION_PACKETS) >= DURATION_ACTION_PACKETS ) {
           bufffer.resetQueue();
           isStartOfMove = false;
+          delay(1000);
           //Serial.println("Ended move");
         }
       }
