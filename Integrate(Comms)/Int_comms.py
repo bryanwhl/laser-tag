@@ -37,11 +37,12 @@ all beetle address
 '''
 beetle_addresses = [
     "B0:B1:13:2D:D4:AB", 
-    "B0:B1:13:2D:D8:8C",
+    "B0:B1:13:2D:CD:A2",
     "B0:B1:13:2D:D4:89",
     "B0:B1:13:2D:B3:08",
     "B0:B1:13:2D:D8:AC",
-    "B0:B1:13:2D:CD:A2"
+    "B0:B1:13:2D:D8:8C",
+
     ]
 beetle_status = {}
 PACKET_LENGTH = 20
@@ -89,7 +90,7 @@ class ExternalComms(Thread):
                 message += _d
             if len(message) == 0:
                 print('no more data from the client')
-                self.serverSocket.close()
+                conn_socket.close()
                 return
 
             message = message.decode("utf-8")
@@ -103,7 +104,7 @@ class ExternalComms(Thread):
                 message += _d
             if len(message) == 0:
                 print('no more data from the client')
-                self.serverSocket.close()
+                conn_socket.close()
                 return
             decodedMessage = b64decode(message)
 
@@ -181,6 +182,7 @@ class ExternalComms(Thread):
                     len_byte = str(len(encryptedMessage_64)).encode("utf-8") + b'_'
                     finalmsg = len_byte+encryptedMessage_64
                     self.clientSocket.send(finalmsg)
+                    print("sent")
                     time.sleep(0.05)            
         except KeyboardInterrupt:
             print("Closing Client Socket")
@@ -299,17 +301,20 @@ def clear_padding(data):
             return data
 
 def unpack_data(data):
-    signs   = int(data[0])
-    value_1 = int(data[1:6]) / 100
-    value_2 = int(data[6:11]) / 100
-    value_3 = int(data[11:16]) / 100
-    if (signs % 2 != 0):
-        value_3 = -value_3
-    if ((signs/2) % 2 != 0):
-        value_2 = -value_2
-    if ((floor(signs/2)/2) % 2 != 0):
-        value_1 = -value_1
-    return value_1, value_2, value_3
+    try:
+        signs   = int(data[0])
+        value_1 = int(data[1:6]) / 100
+        value_2 = int(data[6:11]) / 100
+        value_3 = int(data[11:16]) / 100
+        if (signs % 2 != 0):
+            value_3 = -value_3
+        if ((signs/2) % 2 != 0):
+            value_2 = -value_2
+        if ((floor(signs/2)/2) % 2 != 0):
+            value_1 = -value_1
+        return value_1, value_2, value_3
+    except ValueError:
+        return 0, 0, 0
 
 def utf8len(s):
     return len(s.encode('utf-8'))
