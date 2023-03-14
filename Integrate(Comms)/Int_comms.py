@@ -378,6 +378,7 @@ class BeetleThread(Thread):
 
                 # call data collecting comms
                 self.receive_data(self.pheripheral, motion_msg)
+                self.update_beetles(self.pheripheral)
 
         except BTLEException:
             self.pheripheral.disconnect()
@@ -480,64 +481,71 @@ class BeetleThread(Thread):
         global hp_two
         global bullet_one
         global bullet_two
-
-        if(self.addr == "B0:B1:13:2D:D8:8C" and bullet_one):   # gun 1
-            count = 0
-            value = bullet_one[-1]
-            bullet_one.clear()
-            print(CR, "updating bullet count of gun 1: ", value, alphabets[int(value)], SPACE, end = END)
-            # Wait for ack packet from bluno
-            while (not self.ACK):
-                self.send_data(str(alphabets[int(value)]))
-                p.waitForNotifications(0.5)
-                count += 1
-                if(count >= 5):
-                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-            print(CR, "UPDATE ACKED", SPACE, end = END)
-            self.ACK = False
-        elif(self.addr == "B0:B1:13:2D:CD:A2" and bullet_two): # gun 2
-            count = 0
-            value = bullet_two[-1]
-            bullet_two.clear()
-            print(CR, "updating bullet count of gun 2: ", value, alphabets[int(value)], SPACE, end = END)
-            # Wait for ack packet from bluno
-            while (not self.ACK):
-                self.send_data(str(alphabets[int(value)]))
-                p.waitForNotifications(0.5)
-                count += 1
-                if(count >= 5):
-                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-            print(CR, "UPDATE ACKED", SPACE, end = END)
-            self.ACK = False
-        elif(self.addr == "B0:B1:13:2D:D4:89" and hp_one): # vest 1
-            count = 0
-            value = hp_one[-1]
-            hp_one.clear()
-            print(CR, "updating bullet count of vest 1: ", value, alphabets[int(value)/10], SPACE, end = END)
-            # Wait for ack packet from bluno
-            while (not self.ACK):
-                self.send_data(str(alphabets[int(value)/10]))
-                p.waitForNotifications(0.5)
-                count += 1
-                if(count >= 5):
-                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-            print(CR, "UPDATE ACKED", SPACE, end = END)
-            self.ACK = False
-        elif(self.addr == "B0:B1:13:2D:D8:AC" and hp_two): # vest 2
-            count = 0
-            value = hp_two[-1]
-            hp_two.clear()
-            print(CR, "updating bullet count of vest 1: ", value, alphabets[int(value)/10], SPACE, end = END)
-            # Wait for ack packet from bluno
-            while (not self.ACK):
-                self.send_data(str(alphabets[int(value)/10]))
+        try:
+            if(self.addr == "B0:B1:13:2D:CD:A2" and bullet_one):   # gun 1
+                print("HELLLO")
+                count = 0
+                value = bullet_one[-1]
+                bullet_one.clear()
+                print(value, end = "")
+                print(alphabets[value], end = "")
+                print(CR, "updating bullet count of gun 1: ", value, alphabets[value], SPACE, end = END)
+                # Wait for ack packet from bluno
+                while (not self.ACK):
+                    self.send_data(str(alphabets[int(value)]))
+                    p.waitForNotifications(0.5)
+                    count += 1
+                    if(count >= 5):
+                        raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+                print(CR, "UPDATE ACKED", SPACE, end = END)
+                self.ACK = False
+            elif(self.addr == "B0:B1:13:2D:D8:8C" and bullet_two): # gun 2
+                count = 0
+                value = bullet_two[-1]
+                bullet_two.clear()
+                print(CR, "updating bullet count of gun 2: ", value, alphabets[value], SPACE, end = END)
+                # Wait for ack packet from bluno
+                while (not self.ACK):
+                    self.send_data(str(alphabets[int(value)]))
+                    p.waitForNotifications(0.5)
+                    count += 1
+                    if(count >= 5):
+                        raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+                print(CR, "UPDATE ACKED", SPACE, end = END)
+                self.ACK = False
+            elif(self.addr == "B0:B1:13:2D:D4:89" and hp_one): # vest 1
+                count = 0
+                value = hp_one[-1]
+                hp_one.clear()
+                index = value/10
+                print(CR, "updating hp of vest 1: ", value, alphabets[int(index)], SPACE, end = END)
+                # Wait for ack packet from bluno
+                while (not self.ACK):
+                    self.send_data(str(alphabets[int(value)/10]))
+                    p.waitForNotifications(0.5)
+                    count += 1
+                    if(count >= 5):
+                        raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+                print(CR, "UPDATE ACKED", SPACE, end = END)
+                self.ACK = False
+            elif(self.addr == "B0:B1:13:2D:D8:AC" and hp_two): # vest 2
+                count = 0
+                value = hp_two[-1]
                 hp_two.clear()
-                p.waitForNotifications(0.5)
-                count += 1
-                if(count >= 5):
-                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-            print(CR, "UPDATE ACKED", SPACE, end = END)
-            self.ACK = False
+                index = value/10
+                print(CR, "updating hp of vest 2: ", value, alphabets[int(index)], SPACE, end = END)
+                # Wait for ack packet from bluno
+                while (not self.ACK):
+                    self.send_data(str(alphabets[int(value)/10]))
+                    hp_two.clear()
+                    p.waitForNotifications(0.5)
+                    count += 1
+                    if(count >= 5):
+                        raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+                print(CR, "UPDATE ACKED", SPACE, end = END)
+                self.ACK = False
+        except TypeError:
+            print("Exception in updating stat")
             
     def acknowledge_data(self):
         print(CR, "DATA RECEIVED. ACK SENT", SPACE, end = END)
