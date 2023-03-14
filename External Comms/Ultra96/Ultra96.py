@@ -16,6 +16,7 @@ from pynq import allocate
 import numpy as np
 from struct import unpack, pack
 import time
+from math import exp
 
 
 # Init connection settings
@@ -540,9 +541,11 @@ class GameEngine:
 
 class HardwareAI:
 
-    def __init__(self, player):
-        self.player = player
-        self.overlay = Overlay('./bitstream_4_outputs.bit')
+
+    def __init__(self):
+        self.queue = []
+        self.overlay = Overlay('./new_data_bitstream.bit')
+
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
@@ -574,6 +577,21 @@ class HardwareAI:
 
         out = (out_buffer[0:4])
         out = out.tolist()
+        output = [0 for i in range(4)]
+        can_softmax = True
+        for i in range(4):
+            output[i] = unpack('f', pack('i', out[i]))[0]
+            if output[i] > 700: # Limit for when softmax cannot be used
+                can_softmax = False
+        
+        if can_softmax:
+            total = 0.0000001
+            for val in output:
+                total += exp(val)
+            for i in range(len(output)):
+                output[i] = exp(output[i]) / total
+            if max(output) < 0.6:
+                return INT_TO_ACTION_MAPPING[4]
 
         print(out)
 
