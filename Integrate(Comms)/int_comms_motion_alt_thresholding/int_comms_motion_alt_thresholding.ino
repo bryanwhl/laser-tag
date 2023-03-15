@@ -55,7 +55,7 @@ unsigned long sentTime;
 #define THRESHOLDING_CAPACITY 10
 #define ARRAY_SIZE 6
 float THRESHOLD_ANGEL = 200;
-float THRESHOLD_ACC = 2000;
+float THRESHOLD_ACC = 1950;
 long DURATION_ACTION_PACKETS = 1700;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
@@ -156,6 +156,92 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
 
 /*-------------------------------------------------------------------------------------
   END OF THRESHOLDING
+  -------------------------------------------------------------------------------------*/
+
+/*-------------------------------------------------------------------------------------
+  START OF THRESHOLDING FROM GITHUB
+  -------------------------------------------------------------------------------------*/
+volatile float yprDiff[THRESHOLDING_CAPACITY][3] = { 0.0 };
+volatile float accDiff[THRESHOLDING_CAPACITY][3] = { 0.0 };
+volatile int yprIndex = 0;
+volatile int accIndex = 0;
+
+volatile float yprBefore[3] = {0.0, 0.0, 0.0};
+volatile float yprCurrent[3] = {0.0, 0.0, 0.0};
+volatile float yawDiff = 0.0;
+volatile float pitchDiff = 0.0;
+volatile float rollDiff = 0.0;
+
+volatile float accBefore[3] = {0, 0, 0};
+volatile float accCurrent[3] = {0, 0, 0};
+volatile float accXDiff = 0;
+volatile float accYDiff = 0;
+volatile float accZDiff = 0;
+
+void updateYpr(float y, float p, float r) {
+  yprBefore[0] = yprCurrent[0];
+  yprBefore[1] = yprCurrent[1];
+  yprBefore[1] = yprCurrent[2];
+  yprCurrent[0] = y;
+  yprCurrent[0] = p;
+  yprCurrent[0] = r;
+}
+
+void updateAcc(float x, float y, float z) {
+  accBefore[0] = accCurrent[0];
+  accBefore[1] = accCurrent[1];
+  accBefore[1] = accCurrent[2];
+  accCurrent[0] = x;
+  accCurrent[0] = y;
+  accCurrent[0] = z;
+}
+
+void updateThresholdBuffer() {
+  // Compute the differences between these 2 YPR values to detect if there is a sudden movement
+  yawDiff = yprBefore[0] - yprCurrent[0];
+  pitchDiff = yprBefore[1] - yprCurrent[1];
+  rollDiff = yprBefore[2] - yprCurrent[2];
+  accXDiff = accBefore[0] - accCurrent[0];
+  accYDiff = accBefore[1] - accCurrent[1];
+  accZDiff = accBefore[2] - accCurrent[2];
+
+  // Store the differences for ypr and accel into yprDiff and accelDiff into the circular buffer
+  yprDiff[yprIndex][0] = abs(yawDiff);
+  yprDiff[yprIndex][1] = abs(pitchDiff);
+  yprDiff[yprIndex][2] = abs(rollDiff);
+  yprIndex = (yprIndex + 1) % THRESHOLDING_CAPACITY;
+
+  accDiff[accIndex][0] = abs(accXDiff);
+  accDiff[accIndex][1] = abs(accYDiff);
+  accDiff[accIndex][2] = abs(accZDiff);
+  accIndex = (accIndex + 1) % THRESHOLDING_CAPACITY;;
+}
+
+bool detectStartOfMove() {
+  volatile float yawDiffSum = 0.0;
+  volatile float pitchDiffSum = 0.0;
+  volatile float rollDiffSum = 0.0;
+  volatile long accXDiffSum = 0;
+  volatile long accYDiffSum = 0;
+  volatile long accZDiffSum = 0;
+
+  for (int i = 0; i < THRESHOLDING_CAPACITY; i++) {
+    yawDiffSum += yprDiff[i][0];
+    pitchDiffSum += yprDiff[i][1];
+    rollDiffSum += yprDiff[i][2];
+    accXDiffSum += accDiff[i][0];
+    accYDiffSum += accDiff[i][1];
+    accZDiffSum += accDiff[i][2];
+  }
+
+  if ((abs(yawDiffSum) >= 30 || abs(pitchDiffSum) >= 30 || abs(rollDiffSum) >= 30) && (abs(accXDiffSum) >= 800 || abs(accYDiffSum) >= 800 || abs(accZDiffSum) >= 800)) {
+    return true;
+  }
+  return false;
+}
+
+/*-------------------------------------------------------------------------------------
+  END OF GITHUB THRESHOLD
   -------------------------------------------------------------------------------------*/
 
 void setup() {
@@ -408,6 +494,13 @@ void loop() {
       //if (true) {
       bufffer.queueEnqueue(dataSet);
 
+      /*
+      updateYpr(dataSet[0], dataSet[1], dataSet[2]);
+      updateAcc(dataSet[3], dataSet[4], dataSet[5]);
+      updateThresholdBuffer();
+      isStartOfMove = detectStartOfMove();
+      //*/
+
       if (bufffer.isFull() && !isStartOfMove) {
         isStartOfMove = checkStart0fMove();
         if (isStartOfMove) {
@@ -428,6 +521,7 @@ void loop() {
           bufffer.resetQueue();
           isStartOfMove = false;
           delay(1000);
+          //Serial.println("Ended move");
         }
       }
     }
