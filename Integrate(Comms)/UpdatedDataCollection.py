@@ -388,6 +388,7 @@ class BeetleThread(Thread):
                     if(self.endFlag):
                         self.endFlag = False
                         print("No. of data set: ", self.counter)
+                        self.counter = 0
                         break
             
             while True:

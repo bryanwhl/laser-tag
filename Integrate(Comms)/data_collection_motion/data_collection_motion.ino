@@ -58,8 +58,8 @@ bool startCollecting = false;
   -------------------------------------------------------------------------------------*/
 #define THRESHOLDING_CAPACITY 10
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 200;
-float THRESHOLD_ACC = 1950;
+float THRESHOLD_ANGEL = 300;
+float THRESHOLD_ACC = 2550;
 long DURATION_ACTION_PACKETS = 1700;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
@@ -500,7 +500,7 @@ void loop() {
     dataSet[5] = aaReal.z / 10;
 
     //spam sending of data for motion sensor
-    if (hasHandshakeAck and startCollecting) {
+    if (hasHandshakeAck && startCollecting) {
       //if (true) {
       bufffer.queueEnqueue(dataSet);
       if (bufffer.isFull() && !isStartOfMove) {
@@ -523,13 +523,10 @@ void loop() {
           bufffer.resetQueue();
           isStartOfMove = false;
           startCollecting = false;
-
           delay(500);
-          
           dataPadding(END);
           packetOverhead(WAKEUP_ID);
           Serial.write((char*)packet, PACKET_SIZE);
-          
           delay(500);
           //Serial.println("Ended move");
         }
