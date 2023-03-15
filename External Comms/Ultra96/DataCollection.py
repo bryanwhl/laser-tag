@@ -151,6 +151,7 @@ class HardwareAI:
 
     def __init__(self, player):
         self.player = player
+        self.count = 0
 
     def add_to_csv(self):
 
@@ -169,17 +170,18 @@ class HardwareAI:
             return []
         
         ave_queue = []
-        for i in range(0, len(queue), len(queue)//20):
+        for i in range(len(queue)-20, len(queue)):
             ave_queue.append(queue[i])
         
-        with open('./grenade.csv', 'a', encoding='UTF8', newline='') as f:
+        with open('./shield.csv', 'a', encoding='UTF8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
 
             for data in ave_queue:
                 dick = dict(zip(fieldnames, data))
                 writer.writerow(dick)
         
-        print("added to csv")
+        print("added to csv ", self.count)
+        self.count += 1
 
 
     def thread_hardware_ai(self):
