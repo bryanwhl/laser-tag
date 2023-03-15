@@ -54,9 +54,9 @@ unsigned long sentTime;
   -------------------------------------------------------------------------------------*/
 #define THRESHOLDING_CAPACITY 10
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 200;
-float THRESHOLD_ACC = 2000;
-long DURATION_ACTION_PACKETS = 1700;
+float THRESHOLD_ANGEL = 230;
+float THRESHOLD_ACC = 2200;
+long DURATION_ACTION_PACKETS = 2000;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
 
@@ -399,9 +399,9 @@ void loop() {
     mpu.dmpGetAccel(&aa, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    dataSet[3] = aaReal.x / 10;
-    dataSet[4] = aaReal.y / 10;
-    dataSet[5] = aaReal.z / 10;
+    dataSet[3] = aaReal.x / 100;
+    dataSet[4] = aaReal.y / 100;
+    dataSet[5] = aaReal.z / 100;
 
     //spam sending of data for motion sensor
     if (hasHandshakeAck) {
