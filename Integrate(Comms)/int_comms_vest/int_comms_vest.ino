@@ -157,7 +157,7 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      default:  
+      default:
         data_padding(ACK);
         packet_overhead(ACK_ID);
         Serial.write((char*)packet, PACKET_SIZE);
@@ -213,16 +213,18 @@ void loop() {
     delay(300);
     irrecv.resume();
     hp -= 10;
-    if(hp >= 70){
-      hpLevel = 'h';
-    } else if (hp >= 40) {
-      hpLevel = 'm';
-    } else if (hp >= 0){
-      hpLevel = 'l';
-    } else {
-      hpLevel = 'x';
-    }
   }
+
+  if (hp >= 70) {
+    hpLevel = 'h';
+  } else if (hp >= 40) {
+    hpLevel = 'm';
+  } else if (hp >= 0) {
+    hpLevel = 'l';
+  } else {
+    hpLevel = 'x';
+  }
+
   switch (hpLevel) {
     case 'l': // hp >= 0
       digitalWrite(14, LOW);
@@ -239,12 +241,12 @@ void loop() {
       digitalWrite(15, HIGH);
       digitalWrite(17, HIGH);
       break;
-    case 'x': // hp >= 70
+    case 'x': //
       digitalWrite(14, LOW);
       digitalWrite(15, HIGH);
       digitalWrite(17, LOW);
       break;
-     default: 
+    default:
       digitalWrite(14, HIGH);
       digitalWrite(15, LOW);
       digitalWrite(17, HIGH);
