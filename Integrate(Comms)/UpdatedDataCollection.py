@@ -266,7 +266,7 @@ class MyDelegate(btle.DefaultDelegate):
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '5')):
-                    print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
+                    #print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     if (connection_threads[self.connection_index].handshake_completed):
@@ -276,7 +276,7 @@ class MyDelegate(btle.DefaultDelegate):
                         connection_threads[self.connection_index].current_data["pitch"] = float(extracted_data[1])
                         connection_threads[self.connection_index].current_data["yaw"] = float(extracted_data[2])
                 elif ((PACKET_ID == '6')):
-                    print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
+                    #print(CR, "Motion sensor data packet 2 obtained", SPACE, end = END)
                     extracted_data = unpack_data(DATA)
                     #print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     if (connection_threads[self.connection_index].handshake_completed):
@@ -352,6 +352,7 @@ class BeetleThread(Thread):
     err_count = 0
     id = -1
     endFlag = False
+    counter = 0
     current_data = {
         "roll"  : -9999.0,
         "pitch" : -9999.0,
@@ -386,6 +387,7 @@ class BeetleThread(Thread):
                     
                     if(self.endFlag):
                         self.endFlag = False
+                        print("No. of data set: ", self.counter)
                         break
             
             while True:
@@ -488,6 +490,7 @@ class BeetleThread(Thread):
             message += str(self.current_data["accY"]) + ","
             message += str(self.current_data["accZ"]) + "]"
             queue.put(message)
+            self.counter += 1
             
             #each data can only be used once
             self.packet_0 = False
