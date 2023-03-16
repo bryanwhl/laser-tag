@@ -16,6 +16,7 @@ from pynq import allocate
 import numpy as np
 from struct import unpack, pack
 import time
+from math import exp
 
 
 # Init connection settings
@@ -540,9 +541,11 @@ class GameEngine:
 
 class HardwareAI:
 
-    def __init__(self, player):
-        self.player = player
-        self.overlay = Overlay('./bitstream_4_outputs.bit')
+
+    def __init__(self):
+        self.queue = []
+        self.overlay = Overlay('./new_data_bitstream.bit')
+
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
@@ -574,6 +577,21 @@ class HardwareAI:
 
         out = (out_buffer[0:4])
         out = out.tolist()
+        output = [0 for i in range(4)]
+        can_softmax = True
+        for i in range(4):
+            output[i] = unpack('f', pack('i', out[i]))[0]
+            if output[i] > 700: # Limit for when softmax cannot be used
+                can_softmax = False
+        
+        if can_softmax:
+            total = 0.0000001
+            for val in output:
+                total += exp(val)
+            for i in range(len(output)):
+                output[i] = exp(output[i]) / total
+            if max(output) < 0.6:
+                return INT_TO_ACTION_MAPPING[4]
 
         print(out)
 
@@ -592,13 +610,19 @@ class HardwareAI:
             if (datetime.datetime.now() - last_action_time_2).total_seconds() >= 0.5:
                 action_flag_2 = True
 
+            # Clear buffer if insufficient
+            if action_flag_1 and len(motion_one_queue) < 30:
+                motion_one_queue.clear()
+            if action_flag_2 and len(motion_two_queue) < 30:
+                motion_two_queue.clear()
+
             # Predict action if buffer has sufficient data
-            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 40:
+            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 30:
                 action_classified = self.predict()
                 motion_one_queue.clear()
                 if action_classified != "nil":
                     action_one_queue.append(action_classified)
-            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= 40:
+            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= 30:
                 action_classified = self.predict()
                 motion_two_queue.clear()
                 if action_classified != "nil":
@@ -643,7 +667,7 @@ def thread_mockP2():
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
-# ec = EvalClient(EVAL_HOST, EVAL_PORT)
+ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
 ai1 = HardwareAI(player=1)
 ai2 = HardwareAI(player=2)
@@ -652,7 +676,7 @@ def main():
     print("GAMEMODE-", GAMEMODE)
 
     data_server_thread = Thread(target=ds.thread_DataServer)
-    # eval_server_thread = Thread(target=ec.thread_EvalClient)
+    eval_server_thread = Thread(target=ec.thread_EvalClient)
     game_engine_thread = Thread(target=ge.thread_GameEngine)
     hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai)
     hardware_ai_p2_thread = Thread(target=ai2.thread_hardware_ai)
@@ -662,7 +686,7 @@ def main():
     # debug_thread = Thread(target=thread_debug)
 
 
-    # eval_server_thread.start()
+    eval_server_thread.start()
     data_server_thread.start()
     game_engine_thread.start()
     hardware_ai_p1_thread.start()
