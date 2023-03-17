@@ -4,6 +4,7 @@ import socket
 from Process_packet import *
 from socket import *
 from threading import Thread
+from threading import Event
 from bluepy import btle
 from bluepy.btle import BTLEException, Peripheral
 from datetime import datetime
@@ -15,6 +16,8 @@ from Crypto.Util.Padding import pad, unpad
 from base64 import b64encode, b64decode
 
 signal(SIGPIPE,SIG_DFL) 
+
+exit_signal = Event()
 
 # Init connection settings
 HOST = "localhost"
@@ -312,7 +315,7 @@ class BeetleThread(Thread):
             # handshake at start of thread
             self.handshake(self.pheripheral)
             
-            while True:
+            while not exit_signal.is_set():
                 self.current_time = datetime.now()
                 time_diff = self.current_time - self.last_sync_time
                 if (time_diff.total_seconds() > 60):
@@ -323,6 +326,8 @@ class BeetleThread(Thread):
                 
                 if not self.is_motion_sensor:
                     self.update_beetles(self.pheripheral)
+                    
+            raise KeyboardInterrupt()
 
         except BTLEException:
             self.pheripheral.disconnect()
@@ -521,6 +526,7 @@ def main():
         
     except KeyboardInterrupt:
         print("Ending Program... \nBye Bye...")
+        exit_signal.set() 
 
 if __name__ == "__main__":
     main()
