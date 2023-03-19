@@ -1,6 +1,9 @@
 from math import floor
 import crc8
 
+ASCII = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-=,."
+LIMIT = 67
+
 def clean_data(info):
     return (info[2:-1])
 
@@ -13,17 +16,23 @@ def clear_padding(data):
 
 def unpack_data(data):
     try:
-        signs   = int(data[0])
-        value_1 = int(data[1:6]) / 100
-        value_2 = int(data[6:11]) / 100
-        value_3 = int(data[11:16]) / 100
-        if (signs % 2 != 0):
-            value_3 = -value_3
-        if ((signs/2) % 2 != 0):
-            value_2 = -value_2
-        if ((floor(signs/2)/2) % 2 != 0):
-            value_1 = -value_1
-        return value_1, value_2, value_3
+        data_converted = []
+        sensor_values = []
+        for i in range (len(data)):
+            data_converted.append(ASCII.index(data[i]))
+        signs   = data_converted[0]
+        sensor_values.append((data_converted[1] + data_converted[2]  * LIMIT + data_converted[3] * LIMIT * LIMIT)/100)
+        sensor_values.append((data_converted[4] + data_converted[5]  * LIMIT + data_converted[6] * LIMIT * LIMIT)/100)
+        sensor_values.append((data_converted[7] + data_converted[8]  * LIMIT + data_converted[9] * LIMIT * LIMIT)/100)
+        sensor_values.append(data_converted[10] + data_converted[11] * LIMIT)
+        sensor_values.append(data_converted[12] + data_converted[13] * LIMIT)
+        sensor_values.append(data_converted[14] + data_converted[15] * LIMIT)
+        
+        for i in range(6):
+            if (signs % 2 != 0):
+                sensor_values[5-i] = -sensor_values[5-i]
+            signs = floor(signs/2)
+        return sensor_values
     except ValueError:
         return 0, 0, 0
 
