@@ -58,7 +58,7 @@ unsigned long sentTime;
 #define ARRAY_SIZE 6
 float THRESHOLD_ANGEL = 2200;
 float THRESHOLD_ACC = 1920;
-long DURATION_ACTION_PACKETS = 1500;
+long DURATION_ACTION_PACKETS = 1600;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
 

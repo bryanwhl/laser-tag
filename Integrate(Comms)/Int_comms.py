@@ -232,8 +232,7 @@ class MyDelegate(btle.DefaultDelegate):
                 print(CR, "data from ", BEETLE_ID, end=END)
 
                 # update last sync time that is used for wakeup/timeout calls
-                connection_threads[self.connection_index].last_sync_time = datetime.now(
-                )
+                connection_threads[self.connection_index].last_sync_time = datetime.now()
 
                 # handle packet from beetle
                 if ((PACKET_ID == '0') and (received_data == "ACK")):
@@ -264,9 +263,9 @@ class MyDelegate(btle.DefaultDelegate):
                     else:
                         connection_threads[self.connection_index].correct_seq_num = False
                 elif ((PACKET_ID == '5')):
-                    # print(CR, "Motion sensor data packet 1 obtained", SPACE, end = END)
+                    # print(CR, "Motion sensor data obtained", SPACE, end = END)
                     extracted_data = unpack_data(received_data)
-                    print(CR, extracted_data, SPACE, end=END)
+                    # print(CR, extracted_data, SPACE, end=END)
                     # print(extracted_data[0], " ", extracted_data[1], " ", extracted_data[2])
                     if (connection_threads[self.connection_index].handshake_completed):
                         self.current_data["roll"] = float(extracted_data[0])
