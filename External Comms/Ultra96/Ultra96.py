@@ -577,7 +577,6 @@ class HardwareAI:
     def __init__(self):
         self.queue = []
         self.overlay = Overlay('./new_data_bitstream.bit')
-
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
