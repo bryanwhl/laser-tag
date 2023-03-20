@@ -178,8 +178,8 @@ class HardwareAI:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
 
             for data in ave_queue:
-                dick = dict(zip(fieldnames, data))
-                writer.writerow(dick)
+                dictionary = dict(zip(fieldnames, data))
+                writer.writerow(dictionary)
         
         print("added to csv ", self.count)
         self.count += 1
@@ -200,10 +200,9 @@ class HardwareAI:
 
             # Predict action if buffer has sufficient data
             if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 30:
-                action_classified = self.add_to_csv()
+                self.add_to_csv()
                 motion_one_queue.clear()
-                if action_classified != "nil":
-                    action_one_queue.append(action_classified)
+                
             
 
 # Init global objects
