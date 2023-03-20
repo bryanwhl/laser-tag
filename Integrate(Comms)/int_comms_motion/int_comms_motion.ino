@@ -29,6 +29,8 @@ float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 //constants
+char ASCII[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-=,.";
+int limit = 67;
 char HANDSHAKE[]  = "HANDSHAKE";
 char ACK[]        = "ACK";
 char WAKEUP[]     = "WAKEUP";
@@ -54,9 +56,9 @@ unsigned long sentTime;
   -------------------------------------------------------------------------------------*/
 #define THRESHOLDING_CAPACITY 10
 #define ARRAY_SIZE 6
-float THRESHOLD_ANGEL = 200;
-float THRESHOLD_ACC = 2000;
-long DURATION_ACTION_PACKETS = 1700;
+float THRESHOLD_ANGEL = 2200;
+float THRESHOLD_ACC = 1920;
+long DURATION_ACTION_PACKETS = 1600;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
 
@@ -102,10 +104,10 @@ typedef struct Queuee {
     float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
     int index = (front + 0) % THRESHOLDING_CAPACITY;
     for (int i = 0; i < THRESHOLDING_CAPACITY / 2; ++i) {
+      index = (front + i) % THRESHOLDING_CAPACITY;
       for (int j = 0; j < ARRAY_SIZE; ++j) {
         currentSum[j] += internalQueue[index][j];
       }
-      index = (front + i) % THRESHOLDING_CAPACITY;
     }
     memcpy(data, currentSum, sizeof(currentSum));
   }
@@ -114,11 +116,11 @@ typedef struct Queuee {
     float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
     int index = (front + 0) % THRESHOLDING_CAPACITY;
     for (int i = THRESHOLDING_CAPACITY / 2; i < THRESHOLDING_CAPACITY; ++i) {
+      index = (front + i) % THRESHOLDING_CAPACITY;
       for (int j = 0; j < ARRAY_SIZE; ++j) {
 
         currentSum[j] += internalQueue[index][j];
       }
-      index = (front + i) % THRESHOLDING_CAPACITY;
     }
     memcpy(data, currentSum, sizeof(currentSum));
   }
@@ -203,31 +205,16 @@ void setup() {
   delay(100);
 }
 
-// count number of digit in data
-int countDigits(long num) {
-  uint8_t count = 0;
-  while (num)
-  {
-    num = num / 10;
-    count++;
-  }
-  return count;
-}
-
 // add digit into string
-void insertDigit(char tempData[16], int &index, long value) {
-  int numDigit;
-  char holder[6];
-  String temp;
+void insertDigit(char tempData[16], int &index, long value, int numLoop) {
+  int asciiValue = -1;
+  char holder;
+  long temp = value;
 
-  temp = String(abs(value));
-  temp.toCharArray(holder, 6);
-  numDigit = countDigits(abs(value));
-  for (int i = 0; i < 5 - numDigit; ++i) {
-    tempData[index++] = '0';
-  }
-  for (int i = 0; i < numDigit; ++i) {
-    tempData[index++] = holder[i];
+  for (int i = 0; i < numLoop; ++i) {
+    asciiValue = temp % limit;
+    tempData[index++] = ASCII[asciiValue];
+    temp = floor(temp / limit);
   }
 }
 
@@ -283,56 +270,53 @@ void sendDataString(float dataSet0, float dataSet1, float dataSet2, float dataSe
   long roll  =  (long)(dataSet0 * 100) % 100000;
   long pitch =  (long)(dataSet1 * 100) % 100000;
   long yaw   =  (long)(dataSet2 * 100) % 100000;
-  long accX  =  (long)(dataSet3 * 100) % 100000;
-  long accY  =  (long)(dataSet4 * 100) % 100000;
-  long accZ  =  (long)(dataSet5 * 100) % 100000;
+  long accX  =  (long)(dataSet3)       % 1000;
+  long accY  =  (long)(dataSet4)       % 1000;
+  long accZ  =  (long)(dataSet5)       % 1000;
 
-  int index;
-  char sign[2];
+  int index = 1;
   char tempData[16];
+  int sign = 0;
 
-  //packet 0
-  signs = 0;
-  index = 1;
-  for (int i = 0; i < 3; ++i) {
-    if (dataSet[i] < 0) {
-      signs += 1;
-    }
-    signs *= 2;
+  if (dataSet0 < 0) {
+    sign += 1;
   }
-  String(signs).toCharArray(sign, 2);
-  tempData[0] = sign[0];
+  sign *= 2;
+  if (dataSet1 < 0) {
+    sign += 1;
+  }
+  sign *= 2;
+  if (dataSet2 < 0) {
+    sign += 1;
+  }
+  sign *= 2;
+  if (dataSet3 < 0) {
+    sign += 1;
+  }
+  sign *= 2;
+  if (dataSet4 < 0) {
+    sign += 1;
+  }
+  sign *= 2;
+  if (dataSet5 < 0) {
+    sign += 1;
+  }
 
-  insertDigit(tempData, index, roll);
-  insertDigit(tempData, index, pitch);
-  insertDigit(tempData, index, yaw);
+  tempData[0] = ASCII[sign];
+
+  insertDigit(tempData, index, abs(roll), 3);
+  insertDigit(tempData, index, abs(pitch), 3);
+  insertDigit(tempData, index, abs(yaw), 3);
+  insertDigit(tempData, index, abs(accX), 2);
+  insertDigit(tempData, index, abs(accY), 2);
+  insertDigit(tempData, index, abs(accZ), 2);
+
   dataPadding(tempData);
   packetOverhead(MOTION_ID_P1);
   Serial.write((char*)packet, PACKET_SIZE);
   memset(data, 0, 16);
 
   delay(40);
-
-  //packet 1
-  signs = 0;
-  index = 1;
-  for (int i = 0; i < 3; ++i) {
-    signs *= 2;
-    if (dataSet[i + 3] < 0) {
-      signs += 1;
-    }
-  }
-  String(signs).toCharArray(sign, 2);
-  tempData[0] = sign[0];
-
-  insertDigit(tempData, index, accX);
-  insertDigit(tempData, index, accY);
-  insertDigit(tempData, index, accZ);
-
-  dataPadding(tempData);
-  packetOverhead(MOTION_ID_P2);
-  Serial.write((char*)packet, 20);
-  memset(data, 0, 16);
 }
 
 
@@ -399,9 +383,9 @@ void loop() {
     mpu.dmpGetAccel(&aa, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    dataSet[3] = aaReal.x / 10;
-    dataSet[4] = aaReal.y / 10;
-    dataSet[5] = aaReal.z / 10;
+    dataSet[3] = aaReal.x / 20;
+    dataSet[4] = aaReal.y / 20;
+    dataSet[5] = aaReal.z / 20;
 
     //spam sending of data for motion sensor
     if (hasHandshakeAck) {
@@ -413,17 +397,14 @@ void loop() {
         if (isStartOfMove) {
           START_ACTION_PACKETS = millis();
         }
-        /*
-          Serial.print(DIFF_ACC);
-          Serial.print("--");
-          Serial.println(DIFF_YPR);//*/
+      }
+
+      if (bufffer.isFull()) {
         bufffer.queueDequeue(dataSet);
       }
-      if (bufffer.isFull() && isStartOfMove) {
 
-        bufffer.queueDequeue(dataSet);
+      if (isStartOfMove) {
         sendDataString(dataSet[0], dataSet[1], dataSet[2], dataSet[3], dataSet[4], dataSet[5]);
-        //memset(dataSet, 0, 6);
         if ( (millis() - START_ACTION_PACKETS) >= DURATION_ACTION_PACKETS ) {
           bufffer.resetQueue();
           isStartOfMove = false;
