@@ -590,7 +590,7 @@ class HardwareAI:
 
     def __init__(self, player):
         self.player = player
-        self.overlay = Overlay('./new_data_bitstream.bit')
+        self.overlay = Overlay('/home/xilinx/new_data_bitstream.bit')
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
