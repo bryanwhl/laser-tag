@@ -417,39 +417,46 @@ class BeetleThread(Thread):
         global hp_two
         global bullet_one
         global bullet_two
+        hasData = False
+        value = 0
 
         if (self.addr == "B0:B1:13:2D:D8:8C" and bullet_one):   # gun 1
+            hasData = True
             count = 0
             value = bullet_one[-1]
             bullet_one.clear()
             if value == 1:
                 value = 2
         elif (self.addr == "B0:B1:13:2D:CD:A2" and bullet_two):  # gun 2
+            hasData = True
             count = 0
             value = bullet_two[-1]
             bullet_two.clear()
             if value == 1:
                 value = 2
         elif (self.addr == "B0:B1:13:2D:D4:89" and hp_one):  # vest 1
+            hasData = True
             count = 0
             value = hp_one[-1] / 10
             hp_one.clear()
         elif (self.addr == "B0:B1:13:2D:D8:AC" and hp_two):  # vest 2
+            hasData = True
             count = 0
             value = hp_two[-1] / 10
             hp_two.clear()
 
-        print(CR, "UPDATE STATUS of :", self.addr, " ",
-              value, alphabets[value], SPACE, end=END)
-        # Wait for ack packet from bluno
-        while (not self.ACK):
-            self.send_data(str(alphabets[int(value)]))
-            p.waitForNotifications(0.5)
-            count += 1
-            if (count >= 5):
-                raise BTLEException("BEETLE NOT RESPONDING ZZZ")
-        print(CR, "STATUS UPDATE ACKED", SPACE, end=END)
-        self.ACK = False
+        if hasData:
+            print(CR, "UPDATE STATUS of :", self.addr, " ",
+                value, alphabets[value], SPACE, end=END)
+            # Wait for ack packet from bluno
+            while (not self.ACK):
+                self.send_data(str(alphabets[int(value)]))
+                p.waitForNotifications(0.5)
+                count += 1
+                if (count >= 5):
+                    raise BTLEException("BEETLE NOT RESPONDING ZZZ")
+            print(CR, "STATUS UPDATE ACKED", SPACE, end=END)
+            self.ACK = False
 
     def acknowledge_data(self):  # for stop and wait reply
         print(CR, "DATA RECEIVED. ACK SENT", SPACE, end=END)
