@@ -262,6 +262,11 @@ class EvalClient:
                     # Update game state to ground truth
                     updated_game_state = json.loads(decodedMessage)
                     ge.game_state = updated_game_state
+                    # Check for either player logout
+                    if updated_game_state["p1"]["action"] == "logout":
+                        ge.reset_player(1)
+                    if updated_game_state["p2"]["action"] == "logout":
+                        ge.reset_player(2)
                     # Send updated HP and Bullets to Relay - [HP1, HP2, Bullet1, Bullet2]
                     hp_and_bullet = str([updated_game_state["p1"]["hp"], updated_game_state["p2"]["hp"], updated_game_state["p1"]["bullets"], updated_game_state["p2"]["bullets"]])
                     ds.send_to_relay(hp_and_bullet)
@@ -277,6 +282,7 @@ class GameEngine:
         self.shieldEndTimes = {1: datetime.datetime.now() , 2: datetime.datetime.now()}
         self.p1_move = False
         self.p2_move = False
+        self.is_game_over = False
         
     def shoot_bullet(self, player):
         if player == 1:
@@ -393,6 +399,32 @@ class GameEngine:
             timeLeft = self.shieldEndTimes[2] - datetime.datetime.now()
             timeLeft = int(timeLeft.total_seconds())
             self.game_state["p2"]["shield_time"] = timeLeft
+
+    def reset_player(self, player):
+        if player == 1:
+            self.game_state["p1"]["hp"] = 100
+            self.game_state["p1"]["action"] = ""
+            self.game_state["p1"]["bullets"] = 6
+            self.game_state["p1"]["grenades"] = 2
+            self.game_state["p1"]["shield_time"] = 0
+            self.game_state["p1"]["shield_health"] = 0
+            self.game_state["p1"]["num_deaths"] = 0
+            self.game_state["p1"]["num_shield"] = 3
+        if player == 2:
+            self.game_state["p2"]["hp"] = 100
+            self.game_state["p2"]["action"] = ""
+            self.game_state["p2"]["bullets"] = 6
+            self.game_state["p2"]["grenades"] = 2
+            self.game_state["p2"]["shield_time"] = 0
+            self.game_state["p2"]["shield_health"] = 0
+            self.game_state["p2"]["num_deaths"] = 0
+            self.game_state["p2"]["num_shield"] = 3
+
+    def logout(self, player):
+        if player == 1:
+            self.game_state["p1"]["action"] = "logout"
+        if player == 2:
+            self.game_state["p2"]["action"] = "logout"
 
     def handle_player_action(self, player):
         action = action_one_queue.pop() if player == 1 else action_two_queue.pop()
@@ -667,7 +699,7 @@ def thread_mockP2():
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
-ec = EvalClient(EVAL_HOST, EVAL_PORT)
+# ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
 ai1 = HardwareAI(player=1)
 ai2 = HardwareAI(player=2)
@@ -676,7 +708,7 @@ def main():
     print("GAMEMODE-", GAMEMODE)
 
     data_server_thread = Thread(target=ds.thread_DataServer)
-    eval_server_thread = Thread(target=ec.thread_EvalClient)
+    # eval_server_thread = Thread(target=ec.thread_EvalClient)
     game_engine_thread = Thread(target=ge.thread_GameEngine)
     hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai)
     hardware_ai_p2_thread = Thread(target=ai2.thread_hardware_ai)
@@ -686,7 +718,7 @@ def main():
     # debug_thread = Thread(target=thread_debug)
 
 
-    eval_server_thread.start()
+    # eval_server_thread.start()
     data_server_thread.start()
     game_engine_thread.start()
     hardware_ai_p1_thread.start()
