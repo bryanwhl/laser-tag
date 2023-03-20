@@ -16,6 +16,7 @@ from Crypto.Util.Padding import pad, unpad
 from base64 import b64encode, b64decode
 import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 
 signal(SIGPIPE, SIG_DFL)
 
@@ -41,10 +42,10 @@ all beetle address
 "B0:B1:13:2D:D8:8C" - gun
 '''
 beetle_addresses = [
-    "B0:B1:13:2D:D4:AB",
+    # "B0:B1:13:2D:D4:AB",
     "B0:B1:13:2D:CD:A2",
     "B0:B1:13:2D:D4:89",
-    "B0:B1:13:2D:B3:04",
+    "B0:B1:13:2D:B3:08",
     "B0:B1:13:2D:D8:AC",
     "B0:B1:13:2D:D8:8C",
 
@@ -83,6 +84,9 @@ bullet_two = []
 # for updating beetle status
 alphabets = "abcdefghijklmnopqrstuvwxyz"
 
+
+global last_action_time
+last_action_time = datetime.now()
 
 class ExternalComms(Thread):
 
@@ -137,6 +141,41 @@ class ExternalComms(Thread):
             print("HP2: ", hp_two)
             print("Bullet1: ", bullet_one)
             print("Bullet2: ", bullet_two)
+
+    def plot_graph(self, queue):
+
+        plt.clf()
+        
+        for i in range(30):
+            queue.append([i for _ in range(6)])
+            
+            x_axis = [i + 1 for i in range(30)]
+            roll_list = [queue[i][0] for i in range(30)]
+            pitch_list = [queue[i][1] for i in range(30)]
+            yaw_list = [queue[i][2] for i in range(30)]
+            acc_x_list = [queue[i][3] for i in range(30)]
+            acc_y_list = [queue[i][4] for i in range(30)]
+            acc_z_list = [queue[i][5] for i in range(30)]
+            fig, axs = plt.subplots(2, 3)
+            axs[0, 0].plot(x_axis, roll_list)
+            axs[0, 0].set_title('roll graph')
+            axs[0, 1].plot(x_axis, pitch_list)
+            axs[0, 1].set_title('pitch graph')
+            axs[0, 2].plot(x_axis, yaw_list)
+            axs[0, 2].set_title('yaw graph')
+            axs[1, 0].plot(x_axis, acc_x_list)
+            axs[1, 0].set_title('acc_x graph')
+            axs[1, 1].plot(x_axis, acc_y_list)
+            axs[1, 1].set_title('acc_y graph')
+            axs[1, 2].plot(x_axis, acc_z_list)
+            axs[1, 2].set_title('acc_z graph')
+
+            fig.tight_layout(pad=1.5)
+
+            for ax in axs.flat:
+                ax.set()
+
+            plt.plot()
 
     def run(self):
         global vest_msg
@@ -207,17 +246,17 @@ class ExternalComms(Thread):
                     unpacked = eval(x[1])
                     motion_set.append(unpacked)
                     last_action_time = datetime.now()
-                    print("\r", "sent", end = "")
+                    print("sent")
                     time.sleep(0.05)
-                    
-                if((last_action_time - datetime.now()).total_seconds() >= 0.8):
-                    if len(motion_set) < 30:
-                        print("function submit_input: input length is less than 30")
-                    else:
+                
+                if((datetime.now() - last_action_time).total_seconds()  >= 0.8):
+                    if len(motion_set) >= 30:
                         motion_set = motion_set[:30]
-                        print(motion_set)
-                        
+                        print(len(motion_set), ': ', motion_set)
+                        self.plot_graph(motion_set)
+
                     motion_set = []
+                
                 
         except KeyboardInterrupt:
             print("Closing Client Socket")
@@ -259,7 +298,7 @@ class MyDelegate(btle.DefaultDelegate):
                 BEETLE_ID = data_string[0]
                 PACKET_ID = data_string[1]
                 received_data = clear_padding(data_string[2:-2])
-                print(CR, "data from ", BEETLE_ID, end=END)
+                # print(CR, "data from ", BEETLE_ID, end=END)
 
                 # update last sync time that is used for wakeup/timeout calls
                 connection_threads[self.connection_index].last_sync_time = datetime.now()
