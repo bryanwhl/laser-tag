@@ -232,7 +232,7 @@ class MyDelegate(btle.DefaultDelegate):
                 #update last sync time that is used for wakeup/timeout calls
                 connection_threads[self.connection_index].last_sync_time = datetime.now()
                 
-                #handle packet from beetle
+                #handle packet from beetlez
                 if ((PACKET_ID == '0') and (DATA == "ACK")):
                     #print(CR, "ACK received", SPACE, end = END)
                     connection_threads[self.connection_index].ACK = True
@@ -377,20 +377,24 @@ class BeetleThread(Thread):
             self.handshake(self.pheripheral)
             
             while True:
-                input()
+                # input()
                 start_time = datetime.now()
-                self.send_data("R")
+                # self.send_data("R")
                 print("START COLLECTING")
                 while True:
                     self.receive_data(self.pheripheral, motion_msg)
                         
                     
-                    if(self.endFlag):
-                        self.endFlag = False
-                        print("No. of data set: ", self.counter)
-                        self.counter = 0
-                        break
-            
+                    # if(self.endFlag):
+                    #     self.endFlag = False
+                    #     print("No. of data set: ", self.counter)
+                    #     self.counter = 0
+                    #     break
+                    # if( (datetime.now() - start_time).total_seconds()) > 1.6:
+                    #     print("END COLLECTION")
+                    #     print(packet_received)
+                    #     packet_received = 0
+                    #     break
             while True:
                 self.current_time = datetime.now()
                 # time_diff = self.current_time - self.last_sync_time
