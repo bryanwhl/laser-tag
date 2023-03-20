@@ -8,6 +8,7 @@ from pygments import highlight, lexers, formatters
 import datetime
 from time import sleep
 import sys
+import os
 from pynq import Overlay
 
 import pynq.lib.dma
@@ -17,7 +18,6 @@ import numpy as np
 from struct import unpack, pack
 import time
 from math import exp
-
 
 # Init connection settings
 DATA_HOST = gethostname()
@@ -436,7 +436,7 @@ class GameEngine:
             self.update_game_state(player, "reload")
         elif action == "logout":
             self.update_game_state(player, "logout")
-        
+
     def update_game_state(self, player, action):
         print("P", str(player), " - ", action)
         # Shoot if player has bullets
@@ -457,8 +457,7 @@ class GameEngine:
         elif action == "shield_timeout":
             self.shield_timeout(player)
         elif action == "logout":
-            # Add logout
-            pass
+            self.logout()
 
         # Respawns player if dead
         self.respawn_player_if_dead()
@@ -468,6 +467,22 @@ class GameEngine:
 
     # Game Engine Thread
     def thread_GameEngine(self):
+        # Starts game upon input
+        print("Press 'Enter' when game starts...")
+        input()
+
+        # Flush any inital data
+        motion_one_queue.clear()
+        motion_two_queue.clear()
+        gun_one_queue.clear()
+        gun_two_queue.clear()
+        vest_one_queue.clear()
+        vest_two_queue.clear()
+        motion_one_queue.clear()
+        motion_two_queue.clear()
+        action_one_queue.clear()
+        action_two_queue.clear()
+
         # ONE PLAYER GAME ENGINE
         # Checks for player 1's action + player 2's vest
         if GAMEMODE == 1:  
@@ -573,23 +588,23 @@ class GameEngine:
 
 class HardwareAI:
 
-
-    def __init__(self):
-        self.queue = []
+    def __init__(self, player):
+        self.player = player
         self.overlay = Overlay('./new_data_bitstream.bit')
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
 
-        if len(queue) < 40:
-            print("function submit_input: input length is less than 40")
+        if len(queue) < 25:
+            print("function submit_input: input length is less than 25")
             return []
         
+        access = (len(queue) - 20) // 2
         ave_queue = []
-        for i in range(0, len(queue), len(queue)//20):
+        for i in range(access, access+20):
             ave_queue.append(queue[i])
-        print(len(motion_one_queue))
+
 
         in_buffer = allocate(shape=(120,), dtype=np.int32)
         out_buffer = allocate(shape=(5,), dtype=np.int32)
@@ -621,6 +636,7 @@ class HardwareAI:
                 total += exp(val)
             for i in range(len(output)):
                 output[i] = exp(output[i]) / total
+            print(output)
             if max(output) < 0.6:
                 return INT_TO_ACTION_MAPPING[4]
 
@@ -642,18 +658,20 @@ class HardwareAI:
                 action_flag_2 = True
 
             # Clear buffer if insufficient
-            if action_flag_1 and len(motion_one_queue) < 30:
+            if action_flag_1 and len(motion_one_queue) < 25:
                 motion_one_queue.clear()
-            if action_flag_2 and len(motion_two_queue) < 30:
+            if action_flag_2 and len(motion_two_queue) < 25:
                 motion_two_queue.clear()
 
             # Predict action if buffer has sufficient data
-            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 30:
+            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 25:
+                print("PREDICTING....")
                 action_classified = self.predict()
                 motion_one_queue.clear()
                 if action_classified != "nil":
+                    print("action classified")
                     action_one_queue.append(action_classified)
-            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= 30:
+            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= 25:
                 action_classified = self.predict()
                 motion_two_queue.clear()
                 if action_classified != "nil":
@@ -662,22 +680,19 @@ class HardwareAI:
 
 def thread_debug():
     while True:
-        print("\r", "GUN 1 - ", gun_one_queue, end = "")
+        # print("\r", "GUN 1 - ", gun_one_queue, end = "")
         # print("GUN 2 - ", gun_two_queue, end = "")
         # print("VEST 1 - ", vest_one_queue, end = "")
-        print("VEST 2 - ", vest_two_queue, end = "")
-        print("MOTION 1 - ", len(motion_one_queue), end = "")
+        # print("VEST 2 - ", vest_two_queue, end = "")
+        print("\r", "MOTION 1 - ", len(motion_one_queue), "  ", end = "")
         # print("MOTION 2 - ", len(motion_two_queue), end = "")
-        print("ACTION 1 - ", action_one_queue, end = "")
+        print("ACTION 1 - ", action_one_queue, "  ", end = "")
         # print("ACTIOM 2 - ", action_two_queue, end = "")
         # print("Motion size = ", len(motion_one_queue))
         # print(action_one_queue)
 
-        sleep(1)
-
 def thread_mockP1():
     while True:
-        action_one_queue.append('grenade')
         sleep(2)
         vest_one_queue.append(1)
         gun_one_queue.append(1)

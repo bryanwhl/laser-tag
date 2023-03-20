@@ -170,10 +170,11 @@ class HardwareAI:
             return []
         
         ave_queue = []
-        for i in range(len(queue)-20, len(queue)):
+        queue = queue[:30]
+        for i in range(len(queue)):
             ave_queue.append(queue[i])
         
-        with open('./shield.csv', 'a', encoding='UTF8', newline='') as f:
+        with open('./logout.csv', 'a', encoding='UTF8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
 
             for data in ave_queue:
