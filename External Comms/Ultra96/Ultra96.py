@@ -546,11 +546,6 @@ class HardwareAI:
         self.queue = []
         self.overlay = Overlay('./new_data_bitstream.bit')
         self.dma = self.overlay.axi_dma_0
-        
-    def append_10_readings_to_queue(self, readings): # readings: 2D list of 10 readings * 6 attributes
-        self.queue.append(readings)
-        if len(self.queue) >= 30:
-            self.queue = self.queue[10:]
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
