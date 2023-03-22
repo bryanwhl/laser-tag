@@ -14,9 +14,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from base64 import b64encode, b64decode
-import matplotlib
-import matplotlib.pyplot as plt
-matplotlib.use('Agg')
+import csv
 
 signal(SIGPIPE, SIG_DFL)
 
@@ -43,11 +41,11 @@ all beetle address
 '''
 beetle_addresses = [
     # "B0:B1:13:2D:D4:AB",
-    "B0:B1:13:2D:CD:A2",
-    "B0:B1:13:2D:D4:89",
+    # "B0:B1:13:2D:CD:A2",
+    # "B0:B1:13:2D:D4:89",
     "B0:B1:13:2D:B3:08",
-    "B0:B1:13:2D:D8:AC",
-    "B0:B1:13:2D:D8:8C",
+    # "B0:B1:13:2D:D8:AC",
+    # "B0:B1:13:2D:D8:8C",
 
 ]
 
@@ -92,90 +90,30 @@ class ExternalComms(Thread):
 
     def __init__(self):
         Thread.__init__(self)
+        self.count = 0
 
-    def receive_from_ultra(self, conn_socket):
-        while True:
-            # Receive and Parse message (len_EncryptedMessage)
-            # recv length followed by '_' followed by cypher
-            message = b''
-            while not message.endswith(b'_'):
-                _d = conn_socket.recv(1)
-                if not _d:
-                    message = b''
-                    break
-                message += _d
-            if len(message) == 0:
-                print('no more data from the client')
-                conn_socket.close()
-                return
+    def add_to_csv(self, queue):
 
-            message = message.decode("utf-8")
-            length = int(message[:-1])
-            message = b''
-            while len(message) < length:
-                _d = conn_socket.recv(length - len(message))
-                if not _d:
-                    message = b''
-                    break
-                message += _d
-            if len(message) == 0:
-                print('no more data from the client')
-                conn_socket.close()
-                return
-            decodedMessage = b64decode(message)
-
-            iv = decodedMessage[:AES.block_size]
-            cipher = AES.new(key, AES.MODE_CBC, iv)
-            decryptedMessage = cipher.decrypt(decodedMessage[16:])
-            decryptedMessage = unpad(decryptedMessage, AES.block_size)
-            decryptedMessage = decryptedMessage.decode()
-
-            # Return list of hp and bullets
-            hp_and_bullets = eval(decryptedMessage)
-            hp_one.append(hp_and_bullets[0])
-            hp_two.append(hp_and_bullets[1])
-            bullet_one.append(hp_and_bullets[2])
-            bullet_two.append(hp_and_bullets[3])
-
-            print("HP1: ", hp_one)
-            print("HP2: ", hp_two)
-            print("Bullet1: ", bullet_one)
-            print("Bullet2: ", bullet_two)
-
-    def plot_graph(self, queue):
-
-        plt.clf()
+        fieldnames = [
+        "roll" ,
+        "pitch",
+        "yaw"  ,
+        "accX" ,
+        "accY" ,
+        "accZ" 
+        ]
         
-        for i in range(30):
-            queue.append([i for _ in range(6)])
-            
-            x_axis = [i + 1 for i in range(30)]
-            roll_list = [queue[i][0] for i in range(30)]
-            pitch_list = [queue[i][1] for i in range(30)]
-            yaw_list = [queue[i][2] for i in range(30)]
-            acc_x_list = [queue[i][3] for i in range(30)]
-            acc_y_list = [queue[i][4] for i in range(30)]
-            acc_z_list = [queue[i][5] for i in range(30)]
-            fig, axs = plt.subplots(2, 3)
-            axs[0, 0].plot(x_axis, roll_list)
-            axs[0, 0].set_title('roll graph')
-            axs[0, 1].plot(x_axis, pitch_list)
-            axs[0, 1].set_title('pitch graph')
-            axs[0, 2].plot(x_axis, yaw_list)
-            axs[0, 2].set_title('yaw graph')
-            axs[1, 0].plot(x_axis, acc_x_list)
-            axs[1, 0].set_title('acc_x graph')
-            axs[1, 1].plot(x_axis, acc_y_list)
-            axs[1, 1].set_title('acc_y graph')
-            axs[1, 2].plot(x_axis, acc_z_list)
-            axs[1, 2].set_title('acc_z graph')
+        print(queue)
 
-            fig.tight_layout(pad=1.5)
+        with open('./grenade.csv', 'a', encoding='UTF8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
 
-            for ax in axs.flat:
-                ax.set()
-
-            plt.plot()
+            for data in queue:
+                dictionary = dict(zip(fieldnames, data))
+                writer.writerow(dictionary)
+        
+        print("added to csv ", self.count)
+        self.count += 1
 
     def run(self):
         global vest_msg
@@ -183,65 +121,11 @@ class ExternalComms(Thread):
         global motion_msg
         global motion_set
         global last_action_time
-        while True:
-            try:
-                print("connecting to server...")
-                self.clientSocket = socket(AF_INET, SOCK_STREAM)
-                # Create client socket and connect to server
-                self.clientSocket = socket(AF_INET, SOCK_STREAM)
-                self.clientSocket.connect((HOST, PORT))
 
-                # Create thread to receive from Ultra96
-                receiver_thread = Thread(
-                    target=self.receive_from_ultra, args=(self.clientSocket,))
-                receiver_thread.start()
-                break
-            except BrokenPipeError:
-                time.sleep(0.1)
-
-        print("connected to server...")
         try:
             while True:
-                if not vest_msg.empty():
-                    message = "vest " + str(vest_msg.get())
-                    encodedMessage = message.encode()
-                    # Encrypt data
-                    cipher = AES.new(key, AES.MODE_CBC)
-                    encryptedMessage = cipher.iv + \
-                        cipher.encrypt(pad(encodedMessage, AES.block_size))
-                    encryptedMessage_64 = b64encode(encryptedMessage)
-                    len_byte = str(len(encryptedMessage_64)
-                                   ).encode("utf-8") + b'_'
-                    finalmsg = len_byte+encryptedMessage_64
-                    self.clientSocket.send(finalmsg)
-                    time.sleep(0.05)
-
-                if not gun_msg.empty():
-                    message = "gun " + str(gun_msg.get())
-                    encodedMessage = message.encode()
-                    # Encrypt data
-                    cipher = AES.new(key, AES.MODE_CBC)
-                    encryptedMessage = cipher.iv + \
-                        cipher.encrypt(pad(encodedMessage, AES.block_size))
-                    encryptedMessage_64 = b64encode(encryptedMessage)
-                    len_byte = str(len(encryptedMessage_64)
-                                   ).encode("utf-8") + b'_'
-                    finalmsg = len_byte+encryptedMessage_64
-                    self.clientSocket.send(finalmsg)
-                    time.sleep(0.05)
-
                 if not motion_msg.empty():
                     message = str(motion_msg.get())
-                    encodedMessage = message.encode()
-                    # Encrypt data
-                    cipher = AES.new(key, AES.MODE_CBC)
-                    encryptedMessage = cipher.iv + \
-                        cipher.encrypt(pad(encodedMessage, AES.block_size))
-                    encryptedMessage_64 = b64encode(encryptedMessage)
-                    len_byte = str(len(encryptedMessage_64)
-                                   ).encode("utf-8") + b'_'
-                    finalmsg = len_byte+encryptedMessage_64
-                    self.clientSocket.send(finalmsg)
                     x = message.split()
                     unpacked = eval(x[1])
                     motion_set.append(unpacked)
@@ -253,7 +137,7 @@ class ExternalComms(Thread):
                     if len(motion_set) >= 30:
                         motion_set = motion_set[:30]
                         print(len(motion_set), ': ', motion_set)
-                        self.plot_graph(motion_set)
+                        self.add_to_csv(motion_set)
 
                     motion_set = []
                 
