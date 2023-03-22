@@ -7,64 +7,29 @@
 
 #include <IRremote.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Fonts/FreeSans12pt7b.h>
+#include "constants.h"
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
-int bulletCount = 6;
-int buttonState = 1;
-static const int IR_send_pin = 3;
-static const int button_pin = A2;
-IRsend irsend(IR_send_pin);
-
-//constants
-static const char HANDSHAKE[] PROGMEM = "#######HANDSHAKE";
-static const char ACK[]       PROGMEM = "#############ACK";
-static const char WAKEUP[]    PROGMEM = "##########WAKEUP";
-static const char ZEROGUN[]   PROGMEM = "############0GUN";
-static const char ONEGUN[]    PROGMEM = "############1GUN";
-static const int PACKET_SIZE  PROGMEM = 20;
-
-
-//create variable to be used for packet and data processing
+//global variable to be used for packet and data processing
 uint8_t data[16];
 uint8_t packet[20];
 int seq_num = 0;
 
-//boolean checks for logic program
-//check that data transfer has begin
-//check if receive error or handshake from laptop
+//global boolean for handshaking and stop and wait
 bool error          = false;
 bool handshake      = false;
 bool handshake_ack  = false;
-bool data_ack       = false;
-bool data_sent      = false;
-const unsigned long TIMEOUT = 1000;
+
+//global variable for stop and wait
 unsigned long sent_time;
 int activation_count = 0;
+bool data_ack       = false;
+bool data_sent      = false;
 
 void setup() {
   Serial.begin(115200);
   pinMode(button_pin, INPUT_PULLUP);
   pinMode(13, OUTPUT);
   IrSender.begin(IR_send_pin);
-
-  /*
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);
-  }
-  display.clearDisplay();
-  display.setFont(&FreeSans12pt7b);
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 10);
-  display.println("Ready");
-  display.display(); //*/
-
   
   sent_time = millis();
   error = false;
@@ -253,17 +218,9 @@ void loop() {
     error = false;
     delay(30);
   }
-
   buttonState = digitalRead(button_pin);
-
   if (buttonState == 0) {
     activation_count += 1;
-
-    /*
-    display.clearDisplay();
-    display.setCursor(30, 30);
-    display.println("Bang!");
-    display.display(); //*/
     irsend.sendNEC(0x111111, 32);
     //irsend.sendNEC(0x1111,0x22,true);
     digitalWrite(13, HIGH);
@@ -271,18 +228,11 @@ void loop() {
     if(bulletCount <= 0) {
       tone(5,500,600);
       bulletCount -= 1;
-    }
-    else {
+    } else {
       tone(5,784,300);
-//      delay(100);
-//      tone(5,196,300);
     }
-    delay(500);
-    /*
-    display.clearDisplay();
-    display.setCursor(30, 30);
-    display.println(bulletCount);
-    display.display(); //*/
-    digitalWrite(13, LOW); 
+    delay(200);
+    digitalWrite(13, LOW);
+    delay(300); 
   }
 }
