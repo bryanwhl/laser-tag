@@ -583,8 +583,37 @@ class GameEngine:
         # TWO PLAYER UNRESTRICTED GAME ENGINE
         elif GAMEMODE == 3:
             while True:
-                # TO IMPLEMENT
-                pass
+                # Check for player action
+                if action_one_queue:
+                    self.handle_player_action(1)
+                if action_two_queue:
+                    self.handle_player_action(2)
+
+                # Check for vest
+                if vest_one_queue:
+                    self.update_game_state(1, "hit")
+                if vest_two_queue:
+                    self.update_game_state(2, "hit")
+
+                # Check for gun
+                if gun_one_queue:
+                    self.update_game_state(1, "shoot")
+                if gun_two_queue:
+                    self.update_game_state(2, "shoot")
+
+
+                # Clear all action buffers
+                # gun_one_queue.clear()
+                # gun_two_queue.clear()
+                # action_one_queue.clear()
+                # action_two_queue.clear()
+                # vest_one_queue.clear()
+                # vest_two_queue.clear()
+
+                # Print out for debugging purposes
+                formatted_json = json.dumps(self.game_state, indent=4)
+                pretty_json = highlight(formatted_json, lexers.JsonLexer(), formatters.TerminalFormatter())
+                print(pretty_json, '\n')
 
 class HardwareAI:
 
