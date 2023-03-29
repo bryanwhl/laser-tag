@@ -457,7 +457,7 @@ class GameEngine:
         elif action == "shield_timeout":
             self.shield_timeout(player)
         elif action == "logout":
-            self.logout()
+            self.logout(player)
 
         # Respawns player if dead
         self.respawn_player_if_dead()
@@ -524,7 +524,7 @@ class GameEngine:
                 # Waits for player 1 and 2 action
                 while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue):
                     pass
-                
+
                 # Check for shield and prioritise action
                 if action_one_queue:
                     if action_one_queue[0] == 'shield':
