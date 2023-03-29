@@ -42,7 +42,7 @@ void setup() {
 }
 
 //Add # to pad string to 16 char.
-void data_padding(char msg[]) {
+void data_padding(const char msg[]) {
   for (byte k = 0; k < strlen_P(msg); k++) {
     data[k] = pgm_read_byte_near(msg + k);
   }

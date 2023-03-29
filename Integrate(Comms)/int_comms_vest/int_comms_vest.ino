@@ -6,19 +6,12 @@
 #define VEST_ID '4'
 
 #include <IRremote.h>
+#include "constants.h"
+
 const int RECV_PIN = 3;
 IRrecv irrecv(RECV_PIN);
 decode_results results;
 char hpLevel = 'X';
-
-//constants
-char HANDSHAKE[]  = "HANDSHAKE";
-char ACK[]        = "ACK";
-char WAKEUP[]     = "WAKEUP";
-char ZEROVEST[]   = "0VEST";
-char ONEVEST[]    = "1VEST";
-int PACKET_SIZE   = 20;
-
 
 //create variable to be used for packet and data processing
 uint8_t data[16];
@@ -60,7 +53,7 @@ void setup() {
 }
 
 //Add # to pad string to 16 char.
-void data_padding(char msg[]) {
+void data_padding(const char msg[]) {
   int len = strlen(msg);
   int j = 0;
   for (int i = 0; i < 16; i = i + 1) {

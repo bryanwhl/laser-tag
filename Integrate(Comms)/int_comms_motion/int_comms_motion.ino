@@ -50,7 +50,7 @@ unsigned long sentTime;
   -------------------------------------------------------------------------------------*/
 float THRESHOLD_ANGEL = 2200;
 float THRESHOLD_ACC = 1920;
-long DURATION_ACTION_PACKETS = 1600;
+long DURATION_ACTION_PACKETS = 2000;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
 
@@ -77,7 +77,6 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
 
   DIFF_ACC = differenceAcc;
   DIFF_YPR = differenceAngel;
-
 
   return differenceAcc > THRESHOLD_ACC || differenceAngel > THRESHOLD_ANGEL;
 }

@@ -4,9 +4,9 @@
 //constants
 static const char ASCII[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-=,.";
 static const int limit = 67;
-static const char HANDSHAKE[]  = "HANDSHAKE";
-static const char ACK[]        = "ACK";
-static const char WAKEUP[]     = "WAKEUP";
+static char HANDSHAKE[]  = "HANDSHAKE";
+static char ACK[]        = "ACK";
+static char WAKEUP[]     = "WAKEUP";
 static const int PACKET_SIZE   = 20;
 
 #endif
