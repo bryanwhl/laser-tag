@@ -32,6 +32,26 @@ unsigned long TIMEOUT = 1000;
 unsigned long sent_time;
 volatile int activation_count = 0;
 
+void updateHp() {
+    if(hp>= 70) {
+      digitalWrite(14, HIGH);
+      digitalWrite(15, HIGH);
+      digitalWrite(17, HIGH);
+    } else if(hp >= 40) {
+      digitalWrite(14, HIGH);
+      digitalWrite(15, HIGH);
+      digitalWrite(17, LOW);
+    } else if(hp >= 0){
+      digitalWrite(14, HIGH);
+      digitalWrite(15, LOW);
+      digitalWrite(17, LOW);
+    } else {
+      digitalWrite(14, LOW);
+      digitalWrite(15, HIGH);
+      digitalWrite(17, LOW);
+    }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -49,6 +69,9 @@ void setup() {
   data_ack = false;
   data_sent = false;
   seq_num = 0;
+
+  updateHp();
+  
   delay(100);
 }
 
@@ -156,6 +179,7 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         hp = (int)((char)cmd - 'a') * 10;
+        updateHp();
         break;
     }
   }
@@ -205,44 +229,6 @@ void loop() {
     activation_count += 1;
     delay(300);
     irrecv.resume();
-    hp -= 10;
-  }
-
-  if (hp >= 70) {
-    hpLevel = 'h';
-  } else if (hp >= 40) {
-    hpLevel = 'm';
-  } else if (hp >= 0) {
-    hpLevel = 'l';
-  } else {
-    hpLevel = 'x';
-  }
-
-  switch (hpLevel) {
-    case 'l': // hp >= 0
-      digitalWrite(14, LOW);
-      digitalWrite(15, LOW);
-      digitalWrite(17, HIGH);
-      break;
-    case 'm': // hp >= 40
-      digitalWrite(14, LOW);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, HIGH);
-      break;
-    case 'h': // hp >= 70
-      digitalWrite(14, HIGH);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, HIGH);
-      break;
-    case 'x': //
-      digitalWrite(14, LOW);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, LOW);
-      break;
-    default:
-      digitalWrite(14, HIGH);
-      digitalWrite(15, LOW);
-      digitalWrite(17, HIGH);
-      break;
+    //hp -= 10;
   }
 }
