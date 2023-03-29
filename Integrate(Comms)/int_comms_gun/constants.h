@@ -5,7 +5,6 @@ int bulletCount = 6;
 int buttonState = 1;
 static const int IR_send_pin = 3;
 static const int button_pin = A2;
-IRsend irsend(IR_send_pin);
 
 //constants
 static const char HANDSHAKE[] PROGMEM = "#######HANDSHAKE";

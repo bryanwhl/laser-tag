@@ -9,6 +9,8 @@
 #include <Wire.h>
 #include "constants.h"
 
+IRsend irsend(IR_send_pin);
+
 //global variable to be used for packet and data processing
 uint8_t data[16];
 uint8_t packet[20];
@@ -18,8 +20,6 @@ int seq_num = 0;
 bool error          = false;
 bool handshake      = false;
 bool handshake_ack  = false;
-
-//global variable for stop and wait
 unsigned long sent_time;
 int activation_count = 0;
 bool data_ack       = false;
@@ -127,56 +127,13 @@ void loop() {
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
         break;
-      case 'a' :
+      default:
         data_padding(ACK);
         packet_overhead(ACK_ID);
         Serial.write((char*)packet, PACKET_SIZE);
         memset(data, 0, 16);
-        bulletCount = 0;
+        bulletCount = (int)((char)cmd - 'a'); 
         break;
-      case 'b' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 1;
-        break;
-      case 'c' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 2;
-        break;
-      case 'd' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 3;
-        break;
-      case 'e' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 4;
-        break;
-      case 'f' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 5;
-        break;
-      case 'g' :
-        data_padding(ACK);
-        packet_overhead(ACK_ID);
-        Serial.write((char*)packet, PACKET_SIZE);
-        memset(data, 0, 16);
-        bulletCount = 6;
-        break;
-      default: break;
     }
   }
 
@@ -224,7 +181,6 @@ void loop() {
     irsend.sendNEC(0x111111, 32);
     //irsend.sendNEC(0x1111,0x22,true);
     digitalWrite(13, HIGH);
-    bulletCount -= 1;
     if(bulletCount <= 0) {
       tone(5,500,600);
       bulletCount -= 1;
