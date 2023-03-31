@@ -296,6 +296,9 @@ class EvalClient:
 
                     # Clear all queues
                     clear_queues()
+
+                    # Update action count
+                    ge.action_count += 1
                     
                     
         except KeyboardInterrupt:
@@ -309,6 +312,7 @@ class GameEngine:
         self.p1_move = False
         self.p2_move = False
         self.is_game_over = False
+        self.action_count = 0
         
     def shoot_bullet(self, player):
         if player == 1:
@@ -647,6 +651,8 @@ class HardwareAI:
 
     def __init__(self, player):
         self.player = player
+        self.overlay = Overlay('/home/xilinx/mar-29-3.bit')
+        self.dma = self.overlay.axi_dma_0
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
@@ -656,6 +662,9 @@ class HardwareAI:
         ave_queue = []
         for i in range(access, access+20):
             ave_queue.append(queue[i])
+
+        print("ave_queue: ", ave_queue)
+
 
         in_buffer = allocate(shape=(120,), dtype=np.float32)
         out_buffer = allocate(shape=(5,), dtype=np.float32)
@@ -765,7 +774,7 @@ def thread_mockP2():
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
-# ec = EvalClient(EVAL_HOST, EVAL_PORT)
+ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
 ai1 = HardwareAI(player=1)
 ai2 = HardwareAI(player=2)
@@ -774,7 +783,7 @@ def main():
     print("GAMEMODE-", GAMEMODE)
 
     data_server_thread = Thread(target=ds.thread_DataServer)
-    # eval_server_thread = Thread(target=ec.thread_EvalClient)
+    eval_server_thread = Thread(target=ec.thread_EvalClient)
     game_engine_thread = Thread(target=ge.thread_GameEngine)
     hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai)
     hardware_ai_p2_thread = Thread(target=ai2.thread_hardware_ai)
@@ -784,7 +793,7 @@ def main():
     # debug_thread = Thread(target=thread_debug)
 
 
-    # eval_server_thread.start()
+    eval_server_thread.start()
     data_server_thread.start()
     game_engine_thread.start()
     hardware_ai_p1_thread.start()
