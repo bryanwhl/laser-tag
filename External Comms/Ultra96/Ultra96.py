@@ -40,7 +40,8 @@ INT_TO_ACTION_MAPPING = {
 THRESHOLD = 10000 # Tune this value
 
 # Overlay function
-overlay = Overlay('/home/xilinx/mar-29-3.bit')
+overlay = Overlay('/home/xilinx/mar-29.bit')
+overlay.download()
 dma = overlay.axi_dma_0
 
 # Gamemode - 1P/2P/2P Unrestricted (1/2/3)
@@ -281,6 +282,10 @@ class EvalClient:
                     # Update game state to ground truth
                     updated_game_state = json.loads(decodedMessage)
                     ge.game_state = updated_game_state
+                    ge.game_state["p1"]["action"] = ge.game_state["p2"]["action"] = "none"
+                    print("updated to none")
+                    ge.has_updated_game_state = True
+
                     # Check for either player logout
                     if updated_game_state["p1"]["action"] == "logout":
                         ge.reset_player(1)
@@ -293,9 +298,6 @@ class EvalClient:
                     # Update shield timers
                     ge.shieldEndTimes[1] = datetime.datetime.now() + datetime.timedelta(seconds=updated_game_state["p1"]["shield_time"])
                     ge.shieldEndTimes[2] = datetime.datetime.now() + datetime.timedelta(seconds=updated_game_state["p2"]["shield_time"])
-
-                    # Clear all queues
-                    clear_queues()
 
                     # Update action count
                     ge.action_count += 1
@@ -313,7 +315,8 @@ class GameEngine:
         self.p2_move = False
         self.is_game_over = False
         self.action_count = 0
-        
+        self.has_updated_game_state = True
+
     def shoot_bullet(self, player):
         if player == 1:
             self.game_state["p1"]["bullets"] -= 1 if self.game_state["p1"]["bullets"] > 0 else 0
@@ -347,15 +350,17 @@ class GameEngine:
 
     def throw_grenade(self, player):
         if player == 1:
+            self.game_state["p1"]["action"] = "grenade"
             if self.game_state["p1"]["grenades"] > 0:
                 self.take_damage(2, 30)
                 self.game_state["p1"]["grenades"] -= 1
-                self.game_state["p1"]["action"] = "grenade"
+                
         else:
+            self.game_state["p2"]["action"] = "grenade"
             if self.game_state["p2"]["grenades"] > 0:
                 self.take_damage(1, 30)
                 self.game_state["p2"]["grenades"] -= 1
-                self.game_state["p2"]["action"] = "grenade"
+                
 
     def reload_gun(self, player):
         if player == 1:
@@ -549,7 +554,7 @@ class GameEngine:
         elif GAMEMODE == 2:
             while True:
                 # Waits for player 1 and 2 action
-                while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue):
+                while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue) or not self.has_updated_game_state :
                     pass
                 
                 # DEBUG
@@ -586,15 +591,19 @@ class GameEngine:
                 # Check for P1 actions if not shield
                 if not self.p1_move:
                     if gun_one_queue:
+                        print("Handle P1 gun")
                         self.update_game_state(1, "shoot")
                     elif action_one_queue:
+                        print("Handle P1 action")
                         self.handle_player_action(1)
                 
                 # Check for P2 actions if not shield
                 if not self.p2_move:
                     if gun_two_queue:
+                        print("Handle P2 gun")
                         self.update_game_state(2, "shoot")
                     elif action_two_queue:
+                        print("Handle P2 action")
                         self.handle_player_action(2)
 
                 # Clear all action buffers
@@ -607,11 +616,14 @@ class GameEngine:
                 # Add to message_queue to send to eval server
                 message_queue.append(self.game_state)
 
+                # Wait for update from eval_server
+                self.has_updated_game_state = False
+
                 # Print out for debugging purposes
                 formatted_json = json.dumps(self.game_state, indent=4)
                 pretty_json = highlight(formatted_json, lexers.JsonLexer(), formatters.TerminalFormatter())
                 print(pretty_json, '\n')
-        
+
         # TWO PLAYER UNRESTRICTED GAME ENGINE
         elif GAMEMODE == 3:
             while True:
@@ -662,9 +674,6 @@ class HardwareAI:
         ave_queue = []
         for i in range(access, access+20):
             ave_queue.append(queue[i])
-
-        print("ave_queue: ", ave_queue)
-
 
         in_buffer = allocate(shape=(120,), dtype=np.float32)
         out_buffer = allocate(shape=(5,), dtype=np.float32)
