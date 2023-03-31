@@ -39,6 +39,10 @@ INT_TO_ACTION_MAPPING = {
 }
 THRESHOLD = 10000 # Tune this value
 
+# Overlay function
+overlay = Overlay('/home/xilinx/mar-29-3.bit')
+dma = overlay.axi_dma_0
+
 # Gamemode - 1P/2P/2P Unrestricted (1/2/3)
 GAMEMODE = int(sys.argv[1])
 # Check if valid GAMEMODE
@@ -643,8 +647,6 @@ class HardwareAI:
 
     def __init__(self, player):
         self.player = player
-        self.overlay = Overlay('/home/xilinx/mar-29-3.bit')
-        self.dma = self.overlay.axi_dma_0
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
@@ -655,9 +657,6 @@ class HardwareAI:
         for i in range(access, access+20):
             ave_queue.append(queue[i])
 
-        print("ave_queue: ", ave_queue)
-
-
         in_buffer = allocate(shape=(120,), dtype=np.float32)
         out_buffer = allocate(shape=(5,), dtype=np.float32)
 
@@ -667,13 +666,11 @@ class HardwareAI:
                     in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 180))[0]
                 else:
                     in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 999))[0]
-        
-        print("in_buffer: ", in_buffer)
 
-        self.dma.sendchannel.transfer(in_buffer)
-        self.dma.recvchannel.transfer(out_buffer)
-        self.dma.sendchannel.wait()
-        self.dma.recvchannel.wait()
+        dma.sendchannel.transfer(in_buffer)
+        dma.recvchannel.transfer(out_buffer)
+        dma.sendchannel.wait()
+        dma.recvchannel.wait()
 
         out = [0 for i in range(4)]
         output = [0 for i in range(4)]
@@ -683,8 +680,6 @@ class HardwareAI:
             out[i] = output[i]
             if output[i] > 700: # Limit for when softmax cannot be used
                 can_softmax = False
-
-        print("output: ", output)
         
         if can_softmax:
             total = 0.0000001
