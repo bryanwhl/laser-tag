@@ -46,8 +46,17 @@ beetle_addresses = [
     "B0:B1:13:2D:B3:08",
     "B0:B1:13:2D:D8:AC",
     "B0:B1:13:2D:D8:8C",
-
 ]
+
+beetle_system = {
+    "C4:BE:84:20:19:2E": "P1 Motion",
+    "B0:B1:13:2D:CD:A2": "P1 Gun",
+    "B0:B1:13:2D:D4:89": "P1 Vest",
+    "B0:B1:13:2D:B3:08": "P2 Motion",
+    "B0:B1:13:2D:D8:AC": "P2 Vest",
+    "B0:B1:13:2D:D8:8C": "P2 Gun"
+}
+
 beetle_status = {}
 PACKET_LENGTH = 20
 
@@ -230,7 +239,7 @@ class MyDelegate(btle.DefaultDelegate):
                 BEETLE_ID = data_string[0]
                 PACKET_ID = data_string[1]
                 received_data = clear_padding(data_string[2:-2])
-                print(CR, "data from ", BEETLE_ID, end=END)
+                # print(CR, "data from ", BEETLE_ID, end=END)
 
                 # update last sync time that is used for wakeup/timeout calls
                 connection_threads[self.connection_index].last_sync_time = datetime.now()
@@ -343,7 +352,7 @@ class BeetleThread(Thread):
             sys.exit(1)
 
         except KeyboardInterrupt:
-            print("Disconnecting from beetles: ", self.addr)
+            print("Disconnecting from beetles: ", beetle_system[str(self.addr)])
             self.pheripheral.disconnect()
             sys.exit(1)
 
@@ -353,7 +362,7 @@ class BeetleThread(Thread):
 
             # Send handshake packet
             self.send_data("H")
-            print("HANDSHAKE SENT FOR ", self.addr)
+            print("HANDSHAKE SENT FOR ", beetle_system[str(self.addr)])
 
             # Wait for Handshake reply packet from bluno, sent handshake req agn if not received after some time
             while (count < 5):
@@ -364,7 +373,7 @@ class BeetleThread(Thread):
                     break
 
         # Send back last ack to signal end of handshaking
-        print("HANDSHAKE RECEIVED, RETURN ACK FOR", self.addr)
+        print("HANDSHAKE RECEIVED, RETURN ACK FOR", beetle_system[str(self.addr)])
         self.send_data("A")
         self.handshake_reply = False
         count = 0
@@ -385,7 +394,7 @@ class BeetleThread(Thread):
 
     def wakeup(self, p):
         count = 0
-        print(CR, "WAKE UP CALL TO", self.addr, SPACE, end=END)
+        print(CR, "WAKE UP CALL TO", beetle_system[str(self.addr)], SPACE, end=END)
         # Wait for ack packet from bluno
         while (not self.ACK):
             self.send_data("W")
@@ -393,7 +402,7 @@ class BeetleThread(Thread):
             count += 1
             if (count >= 7):
                 raise BTLEException("BEETLE NOT WAKING UP ZZZ")
-        print(CR, "WAKEUP ACKED FROM", self.addr, SPACE, end=END)
+        print(CR, "WAKEUP ACKED FROM", beetle_system[str(self.addr)], SPACE, end=END)
         self.ACK = False
 
     def receive_data(self, p):
@@ -422,14 +431,14 @@ class BeetleThread(Thread):
         hasData = False
         value = 0
 
-        if (self.addr == "B0:B1:13:2D:D8:8C" and bullet_one):   # gun 1
+        if (self.addr == "B0:B1:13:2D:CD:A2" and bullet_one):   # gun 1
             hasData = True
             count = 0
             value = bullet_one[-1]
             bullet_one.clear()
             if value == 1:
                 value = 2
-        elif (self.addr == "B0:B1:13:2D:CD:A2" and bullet_two):  # gun 2
+        elif (self.addr == "B0:B1:13:2D:D8:8C" and bullet_two):  # gun 2
             hasData = True
             count = 0
             value = bullet_two[-1]
@@ -449,7 +458,7 @@ class BeetleThread(Thread):
 
         if hasData:
             print(CR, "UPDATE STATUS of :", self.addr, " ",
-                value, alphabets[value], SPACE, end=END)
+                value, alphabets[int(value)], SPACE, end=END)
             # Wait for ack packet from bluno
             while (not self.ACK):
                 self.send_data(str(alphabets[int(value)]))
@@ -475,7 +484,7 @@ class BeetleThread(Thread):
     def establish_connection(self):
         while True:
             try:
-                print("CONNECTING TO ", self.addr)
+                print("CONNECTING TO ", beetle_system[str(self.addr)])
 
                 # Initialise connection with beetles
                 self.pheripheral = Peripheral(self.addr)
@@ -484,7 +493,7 @@ class BeetleThread(Thread):
                 self.characteristic = self.pheripheral.getCharacteristics()
                 self.pheripheral.setDelegate(MyDelegate(self.connection_index))
 
-                print("CONNECTED TO ", self.addr)
+                print("CONNECTED TO ", beetle_system[str(self.addr)])
                 break
             except BTLEException:
                 time.sleep(1.5)
