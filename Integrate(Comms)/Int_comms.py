@@ -31,7 +31,7 @@ key = bytes(str(key), encoding="utf8")
 connection_threads = {}
 '''
 all beetle address
-"B0:B1:13:2D:D4:AB" - motion sensor
+"C4:BE:84:20:19:2E" - motion sensor
 "B0:B1:13:2D:CD:A2" - gun
 "B0:B1:13:2D:D4:89" - vest
 "B0:B1:13:2D:B3:08" - motion sensor
@@ -40,13 +40,13 @@ all beetle address
 "C4:BE:84:20:19:2E" - motion sensor 
 '''
 beetle_addresses = [
-    # "B0:B1:13:2D:D4:AB",
-    # "B0:B1:13:2D:CD:A2",
-    # "B0:B1:13:2D:D4:89",
-    # "B0:B1:13:2D:B3:08",
-    # "B0:B1:13:2D:D8:AC",
-    # "B0:B1:13:2D:D8:8C",
-    "C4:BE:84:20:19:2E"
+    "C4:BE:84:20:19:2E",
+    "B0:B1:13:2D:CD:A2",
+    "B0:B1:13:2D:D4:89",
+    "B0:B1:13:2D:B3:08",
+    "B0:B1:13:2D:D8:AC",
+    "B0:B1:13:2D:D8:8C",
+
 ]
 beetle_status = {}
 PACKET_LENGTH = 20

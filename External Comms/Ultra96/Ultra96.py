@@ -19,6 +19,8 @@ from struct import unpack, pack
 import time
 from math import exp
 
+
+
 # Init connection settings
 DATA_HOST = gethostname()
 DATA_PORT = 8080
@@ -61,6 +63,9 @@ global action_flag_2
 global last_action_time_1
 global last_action_time_2
 
+DATA_SIZE = 25
+TIMEOUT = 1
+
 action_flag_1 = True
 action_flag_2 = True
 last_action_time_1 = datetime.datetime.now()
@@ -94,7 +99,17 @@ initial_game_state = {
 key = "thisismysecretky"
 key = bytes(str(key), encoding="utf8")
 
-actions = ['shoot', 'hit', 'grenade', 'reload', 'shield', 'logout', 'shield_timeout']
+actions = ['shoot', 'hit', 'grenade', 'reload', 'shield', 'logout']
+
+def clear_queues():
+    gun_one_queue.clear()
+    gun_two_queue.clear()
+    action_one_queue.clear()
+    action_two_queue.clear()
+    vest_one_queue.clear()
+    vest_two_queue.clear()
+    motion_one_queue.clear()
+    motion_two_queue.clear()
 
 class DataServer:
     global action_flag_1
@@ -270,6 +285,13 @@ class EvalClient:
                     # Send updated HP and Bullets to Relay - [HP1, HP2, Bullet1, Bullet2]
                     hp_and_bullet = str([updated_game_state["p1"]["hp"], updated_game_state["p2"]["hp"], updated_game_state["p1"]["bullets"], updated_game_state["p2"]["bullets"]])
                     ds.send_to_relay(hp_and_bullet)
+
+                    # Update shield timers
+                    ge.shieldEndTimes[1] = datetime.datetime.now() + datetime.timedelta(seconds=updated_game_state["p1"]["shield_time"])
+                    ge.shieldEndTimes[2] = datetime.datetime.now() + datetime.timedelta(seconds=updated_game_state["p2"]["shield_time"])
+
+                    # Clear all queues
+                    clear_queues()
                     
                     
         except KeyboardInterrupt:
@@ -337,22 +359,18 @@ class GameEngine:
 
     def activate_shield(self, player):
         if player == 1:
+            self.game_state["p1"]["action"] = "shield"
             if self.game_state["p1"]["num_shield"] > 0 and self.game_state["p1"]["shield_time"] == 0:
                 self.game_state["p1"]["shield_health"] = 30
                 self.game_state["p1"]["shield_time"] = 10
                 self.game_state["p1"]["num_shield"] -= 1
-                self.game_state["p1"]["action"] = "shield"
-                shieldTimer = Timer(10, self.shield_timeout, args=(1,))
-                shieldTimer.start()
                 self.shieldEndTimes[1] = datetime.datetime.now() + datetime.timedelta(seconds=10)
         else:
+            self.game_state["p2"]["action"] = "shield"
             if self.game_state["p2"]["num_shield"] > 0 and self.game_state["p2"]["shield_time"] == 0:
                 self.game_state["p2"]["shield_health"] = 30
                 self.game_state["p2"]["shield_time"] = 10
                 self.game_state["p2"]["num_shield"] -= 1
-                self.game_state["p2"]["action"] = "shield"
-                shieldTimer = Timer(10, self.shield_timeout, args=(2,))
-                shieldTimer.start()
                 self.shieldEndTimes[2] = datetime.datetime.now() + datetime.timedelta(seconds=10)
 
     def respawn_player_if_dead(self):
@@ -383,22 +401,25 @@ class GameEngine:
                             "num_shield": 3
                         }
 
-    def shield_timeout(self, player):
-        print("P", str(player), "Shield Timeout")
-        if player == 1:
-            self.game_state["p1"]["shield_health"] = 0
-        else:
-            self.game_state["p2"]["shield_health"] = 0
-
     def update_shield_timers(self):
+        # Update Player ONE shield
         if self.shieldEndTimes[1] > datetime.datetime.now():
             timeLeft = self.shieldEndTimes[1] - datetime.datetime.now()
             timeLeft = int(timeLeft.total_seconds())
             self.game_state["p1"]["shield_time"] = timeLeft
+        else:
+            print("P1 Shield Timeout")
+            self.game_state["p1"]["shield_health"] = 0
+            self.game_state["p1"]["shield_time"] = 0
+        # Update Player TWO shield
         if self.shieldEndTimes[2] > datetime.datetime.now():
             timeLeft = self.shieldEndTimes[2] - datetime.datetime.now()
             timeLeft = int(timeLeft.total_seconds())
             self.game_state["p2"]["shield_time"] = timeLeft
+        else:
+            print("P2 Shield Timeout")
+            self.game_state["p2"]["shield_health"] = 0
+            self.game_state["p2"]["shield_time"] = 0
 
     def reset_player(self, player):
         if player == 1:
@@ -421,10 +442,17 @@ class GameEngine:
             self.game_state["p2"]["num_shield"] = 3
 
     def logout(self, player):
-        if player == 1:
-            self.game_state["p1"]["action"] = "logout"
-        if player == 2:
-            self.game_state["p2"]["action"] = "logout"
+        if self.action_count > 17:
+            if player == 1:
+                self.game_state["p1"]["action"] = "logout"
+            if player == 2:
+                self.game_state["p2"]["action"] = "logout"
+        else:
+            # Maps logout action to something else if less than 18 actions
+            if player == 1:
+                self.game_state["p1"]["action"] = "reload"
+            if player == 2:
+                self.game_state["p2"]["action"] = "reload"
 
     def handle_player_action(self, player):
         action = action_one_queue.pop() if player == 1 else action_two_queue.pop()
@@ -439,6 +467,10 @@ class GameEngine:
 
     def update_game_state(self, player, action):
         print("P", str(player), " - ", action)
+
+        # Update players' shield timers
+        self.update_shield_timers()
+
         # Shoot if player has bullets
         if action == "shoot":
             self.shoot_bullet(player)
@@ -454,16 +486,12 @@ class GameEngine:
         # Give player a shield 
         elif action == "shield":
             self.activate_shield(player)
-        elif action == "shield_timeout":
-            self.shield_timeout(player)
         elif action == "logout":
-            self.logout()
+            self.logout(player)
 
         # Respawns player if dead
         self.respawn_player_if_dead()
 
-        # Update players' shield timers
-        self.update_shield_timers()
 
     # Game Engine Thread
     def thread_GameEngine(self):
@@ -472,16 +500,7 @@ class GameEngine:
         input()
 
         # Flush any inital data
-        motion_one_queue.clear()
-        motion_two_queue.clear()
-        gun_one_queue.clear()
-        gun_two_queue.clear()
-        vest_one_queue.clear()
-        vest_two_queue.clear()
-        motion_one_queue.clear()
-        motion_two_queue.clear()
-        action_one_queue.clear()
-        action_two_queue.clear()
+        clear_queues()
 
         # ONE PLAYER GAME ENGINE
         # Checks for player 1's action + player 2's vest
@@ -525,6 +544,16 @@ class GameEngine:
                 while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue):
                     pass
                 
+                # DEBUG
+                if gun_one_queue:
+                    print("GUN ONE")
+                if gun_two_queue:
+                    print("GUN TWO")
+                if action_one_queue:
+                    print("ACTION ONE")
+                if action_two_queue:
+                    print("ACTION TWO")
+
                 # Check for shield and prioritise action
                 if action_one_queue:
                     if action_one_queue[0] == 'shield':
@@ -561,12 +590,7 @@ class GameEngine:
                         self.handle_player_action(2)
 
                 # Clear all action buffers
-                gun_one_queue.clear()
-                gun_two_queue.clear()
-                action_one_queue.clear()
-                action_two_queue.clear()
-                vest_one_queue.clear()
-                vest_two_queue.clear()
+                clear_queues()
 
                 # Reset moves checks
                 self.p1_move = False
@@ -583,52 +607,84 @@ class GameEngine:
         # TWO PLAYER UNRESTRICTED GAME ENGINE
         elif GAMEMODE == 3:
             while True:
-                # TO IMPLEMENT
-                pass
+                # Check for player action
+                if action_one_queue:
+                    self.handle_player_action(1)
+                if action_two_queue:
+                    self.handle_player_action(2)
+
+                # Check for vest
+                if vest_one_queue:
+                    self.update_game_state(1, "hit")
+                if vest_two_queue:
+                    self.update_game_state(2, "hit")
+
+                # Check for gun
+                if gun_one_queue:
+                    self.update_game_state(1, "shoot")
+                if gun_two_queue:
+                    self.update_game_state(2, "shoot")
+
+
+                # Clear all action buffers
+                # gun_one_queue.clear()
+                # gun_two_queue.clear()
+                # action_one_queue.clear()
+                # action_two_queue.clear()
+                # vest_one_queue.clear()
+                # vest_two_queue.clear()
+
+                # Print out for debugging purposes
+                formatted_json = json.dumps(self.game_state, indent=4)
+                pretty_json = highlight(formatted_json, lexers.JsonLexer(), formatters.TerminalFormatter())
+                print(pretty_json, '\n')
 
 class HardwareAI:
 
     def __init__(self, player):
         self.player = player
-        self.overlay = Overlay('/home/xilinx/new_data_bitstream.bit')
+        self.overlay = Overlay('/home/xilinx/mar-29-3.bit')
         self.dma = self.overlay.axi_dma_0
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
-
-        if len(queue) < 25:
-            print("function submit_input: input length is less than 25")
-            return []
         
+        # ave_queue = queue
         access = (len(queue) - 20) // 2
         ave_queue = []
         for i in range(access, access+20):
             ave_queue.append(queue[i])
 
+        print("ave_queue: ", ave_queue)
 
-        in_buffer = allocate(shape=(120,), dtype=np.int32)
-        out_buffer = allocate(shape=(5,), dtype=np.int32)
+
+        in_buffer = allocate(shape=(120,), dtype=np.float32)
+        out_buffer = allocate(shape=(5,), dtype=np.float32)
 
         for i in range(20):
             for j in range(6):
                 if j < 3:
-                    in_buffer[i] = unpack('i', pack('f', ave_queue[i][j] / 180))[0]
+                    in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 180))[0]
                 else:
-                    in_buffer[i] = unpack('i', pack('f', ave_queue[i][j] / 999))[0]
+                    in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 999))[0]
+        
+        print("in_buffer: ", in_buffer)
 
         self.dma.sendchannel.transfer(in_buffer)
         self.dma.recvchannel.transfer(out_buffer)
         self.dma.sendchannel.wait()
         self.dma.recvchannel.wait()
 
-        out = (out_buffer[0:4])
-        out = out.tolist()
+        out = [0 for i in range(4)]
         output = [0 for i in range(4)]
         can_softmax = True
         for i in range(4):
-            output[i] = unpack('f', pack('i', out[i]))[0]
+            output[i] = unpack('f', pack('f', out_buffer[i]))[0]
+            out[i] = output[i]
             if output[i] > 700: # Limit for when softmax cannot be used
                 can_softmax = False
+
+        print("output: ", output)
         
         if can_softmax:
             total = 0.0000001
@@ -636,11 +692,11 @@ class HardwareAI:
                 total += exp(val)
             for i in range(len(output)):
                 output[i] = exp(output[i]) / total
-            print(output)
+            print("Softmax output: ", output)
             if max(output) < 0.6:
                 return INT_TO_ACTION_MAPPING[4]
 
-        print(out)
+        output = [round(i, 3) for i in output]
 
         predicted_int = out.index(max(out))
         return INT_TO_ACTION_MAPPING[predicted_int]
@@ -652,26 +708,26 @@ class HardwareAI:
         global action_flag_2
         while True:
             # Check if last action exceeds 0.5s
-            if (datetime.datetime.now() - last_action_time_1).total_seconds() >= 0.5:
+            if (datetime.datetime.now() - last_action_time_1).total_seconds() >= TIMEOUT:
                 action_flag_1 = True
-            if (datetime.datetime.now() - last_action_time_2).total_seconds() >= 0.5:
+            if (datetime.datetime.now() - last_action_time_2).total_seconds() >= TIMEOUT:
                 action_flag_2 = True
 
             # Clear buffer if insufficient
-            if action_flag_1 and len(motion_one_queue) < 25:
+            if action_flag_1 and len(motion_one_queue) < DATA_SIZE:
                 motion_one_queue.clear()
-            if action_flag_2 and len(motion_two_queue) < 25:
+            if action_flag_2 and len(motion_two_queue) < DATA_SIZE:
                 motion_two_queue.clear()
 
             # Predict action if buffer has sufficient data
-            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= 25:
+            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= DATA_SIZE:
                 print("PREDICTING....")
                 action_classified = self.predict()
                 motion_one_queue.clear()
                 if action_classified != "nil":
                     print("action classified")
                     action_one_queue.append(action_classified)
-            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= 25:
+            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= DATA_SIZE:
                 action_classified = self.predict()
                 motion_two_queue.clear()
                 if action_classified != "nil":
@@ -679,14 +735,15 @@ class HardwareAI:
             
 
 def thread_debug():
+    # return
     while True:
         # print("\r", "GUN 1 - ", gun_one_queue, end = "")
         # print("GUN 2 - ", gun_two_queue, end = "")
         # print("VEST 1 - ", vest_one_queue, end = "")
         # print("VEST 2 - ", vest_two_queue, end = "")
         print("\r", "MOTION 1 - ", len(motion_one_queue), "  ", end = "")
-        # print("MOTION 2 - ", len(motion_two_queue), end = "")
-        print("ACTION 1 - ", action_one_queue, "  ", end = "")
+        print("MOTION 2 - ", len(motion_two_queue), end = "")
+        # print("ACTION 1 - ", action_one_queue, "  ", end = "")
         # print("ACTIOM 2 - ", action_two_queue, end = "")
         # print("Motion size = ", len(motion_one_queue))
         # print(action_one_queue)
