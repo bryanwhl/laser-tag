@@ -18,6 +18,10 @@ import numpy as np
 from struct import unpack, pack
 import time
 from math import exp
+from joblib import dump, load
+import warnings
+
+warnings.filterwarnings('ignore')
 
 
 
@@ -25,7 +29,7 @@ from math import exp
 DATA_HOST = gethostname()
 DATA_PORT = 8080
 
-EVAL_HOST = "192.168.95.247"
+EVAL_HOST = "192.168.95.245"
 EVAL_PORT = 1515
 
 # Variables for Hardware AI
@@ -40,9 +44,11 @@ INT_TO_ACTION_MAPPING = {
 THRESHOLD = 10000 # Tune this value
 
 # Overlay function
-overlay = Overlay('/home/xilinx/mar-29.bit')
+overlay = Overlay('/home/xilinx/apr-3.bit')
 overlay.download()
 dma = overlay.axi_dma_0
+scaler1 = load('std_scaler1.bin')
+scaler2 = load('std_scaler2.bin')
 
 # Gamemode - 1P/2P/2P Unrestricted (1/2/3)
 GAMEMODE = int(sys.argv[1])
@@ -283,7 +289,6 @@ class EvalClient:
                     updated_game_state = json.loads(decodedMessage)
                     ge.game_state = updated_game_state
                     ge.game_state["p1"]["action"] = ge.game_state["p2"]["action"] = "none"
-                    print("updated to none")
                     ge.has_updated_game_state = True
 
                     # Check for either player logout
@@ -455,17 +460,10 @@ class GameEngine:
             self.game_state["p2"]["num_shield"] = 3
 
     def logout(self, player):
-        if self.action_count > 17:
-            if player == 1:
-                self.game_state["p1"]["action"] = "logout"
-            if player == 2:
-                self.game_state["p2"]["action"] = "logout"
-        else:
-            # Maps logout action to something else if less than 18 actions
-            if player == 1:
-                self.game_state["p1"]["action"] = "reload"
-            if player == 2:
-                self.game_state["p2"]["action"] = "reload"
+        if player == 1:
+            self.game_state["p1"]["action"] = "logout"
+        if player == 2:
+            self.game_state["p2"]["action"] = "logout"
 
     def handle_player_action(self, player):
         action = action_one_queue.pop() if player == 1 else action_two_queue.pop()
@@ -501,7 +499,6 @@ class GameEngine:
             self.activate_shield(player)
         elif action == "logout":
             self.logout(player)
-
         # Respawns player if dead
         self.respawn_player_if_dead()
 
@@ -553,10 +550,18 @@ class GameEngine:
         # Checks for both player 1 and 2 action and vest
         elif GAMEMODE == 2:
             while True:
-                # Waits for player 1 and 2 action
+                # Waits for player 1 and 2 actionsleep
                 while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue) or not self.has_updated_game_state :
                     pass
                 
+                # Check for logout before turn 18
+                if "logout" in action_one_queue and self.action_count <= 18:
+                    action_one_queue.clear()
+                    continue
+                if "logout" in action_two_queue and self.action_count <= 18:
+                    action_two_queue.clear()
+                    continue
+
                 # DEBUG
                 if gun_one_queue:
                     print("GUN ONE")
@@ -661,10 +666,9 @@ class GameEngine:
 
 class HardwareAI:
 
-    def __init__(self, player):
+    def __init__(self, player, scaler):
         self.player = player
-        self.overlay = Overlay('/home/xilinx/mar-29-3.bit')
-        self.dma = self.overlay.axi_dma_0
+        self.scaler = scaler
 
     def predict(self):
         queue = motion_one_queue if self.player == 1 else motion_two_queue
@@ -675,15 +679,26 @@ class HardwareAI:
         for i in range(access, access+20):
             ave_queue.append(queue[i])
 
-        in_buffer = allocate(shape=(120,), dtype=np.float32)
-        out_buffer = allocate(shape=(5,), dtype=np.float32)
+        try:
+            in_buffer = allocate(shape=(120,), dtype=np.float32)
+            out_buffer = allocate(shape=(5,), dtype=np.float32)
+        except Exception as e:
+            print("Error occured in predict function: ", e)
+            print("in_buffer: ", in_buffer)
+            print("out_buffer: ", out_buffer)
+            return INT_TO_ACTION_MAPPING[4]
 
-        for i in range(20):
-            for j in range(6):
-                if j < 3:
-                    in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 180))[0]
-                else:
-                    in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 999))[0]
+        ave_queue = [[item for sublist in ave_queue for item in sublist]]
+        ave_queue = self.scaler.transform(ave_queue).tolist()
+        for i in range(120):
+            in_buffer[i] = unpack('f', pack('f', ave_queue[0][i]))[0]
+
+        # for i in range(20):
+        #     for j in range(6):
+        #         if j < 3:
+        #             in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 180))[0]
+        #         else:
+        #             in_buffer[j + i * 6] = unpack('f', pack('f', ave_queue[i][j] / 999))[0]
 
         dma.sendchannel.transfer(in_buffer)
         dma.recvchannel.transfer(out_buffer)
@@ -733,17 +748,19 @@ class HardwareAI:
                 motion_two_queue.clear()
 
             # Predict action if buffer has sufficient data
-            if self.player == 1 and action_flag_1 and len(motion_one_queue) >= DATA_SIZE:
+            if self.player == 1 and len(motion_one_queue) >= DATA_SIZE:
                 print("PREDICTING....")
+                time_start = datetime.datetime.now()
                 action_classified = self.predict()
                 motion_one_queue.clear()
                 if action_classified != "nil":
                     print("action classified")
                     action_one_queue.append(action_classified)
-            elif self.player == 2 and action_flag_2 and len(motion_two_queue) >= DATA_SIZE:
+            elif self.player == 2 and len(motion_two_queue) >= DATA_SIZE:
                 action_classified = self.predict()
                 motion_two_queue.clear()
                 if action_classified != "nil":
+                    print("action classified")
                     action_two_queue.append(action_classified)
             
 
@@ -783,16 +800,16 @@ def thread_mockP2():
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
-ec = EvalClient(EVAL_HOST, EVAL_PORT)
+# ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
-ai1 = HardwareAI(player=1)
-ai2 = HardwareAI(player=2)
+ai1 = HardwareAI(player=1, scaler=scaler1)
+ai2 = HardwareAI(player=2, scaler=scaler2)
 
 def main():
     print("GAMEMODE-", GAMEMODE)
 
     data_server_thread = Thread(target=ds.thread_DataServer)
-    eval_server_thread = Thread(target=ec.thread_EvalClient)
+    # eval_server_thread = Thread(target=ec.thread_EvalClient)
     game_engine_thread = Thread(target=ge.thread_GameEngine)
     hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai)
     hardware_ai_p2_thread = Thread(target=ai2.thread_hardware_ai)
@@ -802,7 +819,7 @@ def main():
     # debug_thread = Thread(target=thread_debug)
 
 
-    eval_server_thread.start()
+    # eval_server_thread.start()
     data_server_thread.start()
     game_engine_thread.start()
     hardware_ai_p1_thread.start()
