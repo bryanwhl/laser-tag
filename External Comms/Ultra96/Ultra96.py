@@ -23,14 +23,17 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-
+SLEEP_TIMER = 0.01
 
 # Init connection settings
-DATA_HOST = gethostname()
+DATA_HOST = ''
 DATA_PORT = 8080
 
-EVAL_HOST = "192.168.95.245"
-EVAL_PORT = 1515
+# EVAL_HOST = "137.132.92.184"
+# EVAL_PORT = 9999
+
+EVAL_HOST = "137.132.92.184"
+EVAL_PORT = 9999
 
 # Variables for Hardware AI
 WINDOW_SIZE = 20
@@ -306,6 +309,7 @@ class EvalClient:
 
                     # Update action count
                     ge.action_count += 1
+                sleep(SLEEP_TIMER)
                     
                     
         except KeyboardInterrupt:
@@ -552,13 +556,14 @@ class GameEngine:
             while True:
                 # Waits for player 1 and 2 actionsleep
                 while (not gun_one_queue and not action_one_queue) or (not gun_two_queue and not action_two_queue) or not self.has_updated_game_state :
-                    pass
-                
-                # Check for logout before turn 18
-                if "logout" in action_one_queue and self.action_count <= 18:
+                    sleep(SLEEP_TIMER)
+                    
+
+                # Check for logout before turn 17
+                if "logout" in action_one_queue and self.action_count <= 17:
                     action_one_queue.clear()
                     continue
-                if "logout" in action_two_queue and self.action_count <= 18:
+                if "logout" in action_two_queue and self.action_count <= 17:
                     action_two_queue.clear()
                     continue
 
@@ -735,6 +740,7 @@ class HardwareAI:
         global action_flag_1
         global action_flag_2
         while True:
+            sleep(SLEEP_TIMER)
             # Check if last action exceeds 0.5s
             if (datetime.datetime.now() - last_action_time_1).total_seconds() >= TIMEOUT:
                 action_flag_1 = True
@@ -800,7 +806,7 @@ def thread_mockP2():
 
 # Init global objects
 ds = DataServer(DATA_HOST, DATA_PORT)
-# ec = EvalClient(EVAL_HOST, EVAL_PORT)
+ec = EvalClient(EVAL_HOST, EVAL_PORT)
 ge = GameEngine()
 ai1 = HardwareAI(player=1, scaler=scaler1)
 ai2 = HardwareAI(player=2, scaler=scaler2)
@@ -809,7 +815,7 @@ def main():
     print("GAMEMODE-", GAMEMODE)
 
     data_server_thread = Thread(target=ds.thread_DataServer)
-    # eval_server_thread = Thread(target=ec.thread_EvalClient)
+    eval_server_thread = Thread(target=ec.thread_EvalClient)
     game_engine_thread = Thread(target=ge.thread_GameEngine)
     hardware_ai_p1_thread = Thread(target=ai1.thread_hardware_ai)
     hardware_ai_p2_thread = Thread(target=ai2.thread_hardware_ai)
@@ -819,7 +825,7 @@ def main():
     # debug_thread = Thread(target=thread_debug)
 
 
-    # eval_server_thread.start()
+    eval_server_thread.start()
     data_server_thread.start()
     game_engine_thread.start()
     hardware_ai_p1_thread.start()
