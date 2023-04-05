@@ -37,6 +37,7 @@ all beetle address
 "B0:B1:13:2D:B3:08" - motion sensor
 "B0:B1:13:2D:D8:AC" - vest
 "B0:B1:13:2D:D8:8C" - gun
+"C4:BE:84:20:19:2E" - motion sensor 
 '''
 beetle_addresses = [
     "C4:BE:84:20:19:2E",

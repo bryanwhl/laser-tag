@@ -11,6 +11,9 @@
 #include "Wire.h"
 #endif
 
+#include "constants.h"
+#include "queue.h"
+
 MPU6050 mpu;
 // MPU control/status vars
 uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
@@ -27,15 +30,6 @@ VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measure
 VectorFloat gravity;    // [x, y, z]            gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
-//constants
-char ASCII[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-=,.";
-int limit = 67;
-char HANDSHAKE[]  = "HANDSHAKE";
-char ACK[]        = "ACK";
-char WAKEUP[]     = "WAKEUP";
-int PACKET_SIZE   = 20;
-
 
 //create variable to be used for packet and data processing
 uint8_t data[16];
@@ -54,82 +48,14 @@ unsigned long sentTime;
 /*-------------------------------------------------------------------------------------
   START OF THRESHOLDING (BRYAN)
   -------------------------------------------------------------------------------------*/
-#define THRESHOLDING_CAPACITY 10
-#define ARRAY_SIZE 6
 float THRESHOLD_ANGEL = 2200;
 float THRESHOLD_ACC = 1920;
-long DURATION_ACTION_PACKETS = 1600;
+long DURATION_ACTION_PACKETS = 2000;
 long START_ACTION_PACKETS = 0;
 bool isStartOfMove = false;
 
 volatile float DIFF_ACC = -1269.0;
 volatile float DIFF_YPR = -1269.0;
-
-typedef struct Queuee {
-  int front, capacity, size;
-  float internalQueue[THRESHOLDING_CAPACITY][ARRAY_SIZE] = {0};
-  Queuee() {
-    front = 0;
-    size = 0;
-    capacity = THRESHOLDING_CAPACITY;
-  }
-
-  bool isFull() {
-    return size == capacity;
-  }
-
-  void queueEnqueue(float data[6]) {
-    if (size >= capacity) {
-      return;
-    }
-
-    int index = (front + size) % THRESHOLDING_CAPACITY;
-    ++size;
-    memcpy(internalQueue[index], data, ARRAY_SIZE * sizeof(float));
-    return;
-  }
-
-  void queueDequeue(float data[ARRAY_SIZE]) {
-    if (size == 0) {
-      return;
-    }
-
-    memcpy(data, internalQueue[front], sizeof(internalQueue[front]));
-    front = (front + 1) % THRESHOLDING_CAPACITY;
-    --size;
-    return;
-  }
-
-  void getSumOfFirstHalf(float data[6]) {
-    float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-    int index = (front + 0) % THRESHOLDING_CAPACITY;
-    for (int i = 0; i < THRESHOLDING_CAPACITY / 2; ++i) {
-      index = (front + i) % THRESHOLDING_CAPACITY;
-      for (int j = 0; j < ARRAY_SIZE; ++j) {
-        currentSum[j] += internalQueue[index][j];
-      }
-    }
-    memcpy(data, currentSum, sizeof(currentSum));
-  }
-
-  void getSumOfSecondHalf(float data[ARRAY_SIZE]) {
-    float currentSum[ARRAY_SIZE] = {0, 0, 0, 0, 0, 0};
-    int index = (front + 0) % THRESHOLDING_CAPACITY;
-    for (int i = THRESHOLDING_CAPACITY / 2; i < THRESHOLDING_CAPACITY; ++i) {
-      index = (front + i) % THRESHOLDING_CAPACITY;
-      for (int j = 0; j < ARRAY_SIZE; ++j) {
-
-        currentSum[j] += internalQueue[index][j];
-      }
-    }
-    memcpy(data, currentSum, sizeof(currentSum));
-  }
-
-  void resetQueue() {
-    memset( internalQueue, 0, sizeof(internalQueue) );
-    size = 0;
-  }
-} Queuee;
 
 Queuee bufffer = Queuee();
 
@@ -151,7 +77,6 @@ bool checkStart0fMove() { //2d array of 20 by 6 dimension
 
   DIFF_ACC = differenceAcc;
   DIFF_YPR = differenceAngel;
-
 
   return differenceAcc > THRESHOLD_ACC || differenceAngel > THRESHOLD_ANGEL;
 }
