@@ -33,23 +33,23 @@ unsigned long sent_time;
 volatile int activation_count = 0;
 
 void updateHp() {
-    if(hp>= 70) {
-      digitalWrite(14, HIGH);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, HIGH);
-    } else if(hp >= 40) {
-      digitalWrite(14, HIGH);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, LOW);
-    } else if(hp >= 0){
-      digitalWrite(14, HIGH);
-      digitalWrite(15, LOW);
-      digitalWrite(17, LOW);
-    } else {
-      digitalWrite(14, LOW);
-      digitalWrite(15, HIGH);
-      digitalWrite(17, LOW);
-    }
+  if (hp >= 70) {
+    digitalWrite(14, HIGH);
+    digitalWrite(15, HIGH);
+    digitalWrite(17, HIGH);
+  } else if (hp >= 40) {
+    digitalWrite(14, HIGH);
+    digitalWrite(15, HIGH);
+    digitalWrite(17, LOW);
+  } else if (hp >= 0) {
+    digitalWrite(14, HIGH);
+    digitalWrite(15, LOW);
+    digitalWrite(17, LOW);
+  } else {
+    digitalWrite(14, LOW);
+    digitalWrite(15, HIGH);
+    digitalWrite(17, LOW);
+  }
 }
 
 void setup() {
@@ -70,8 +70,10 @@ void setup() {
   data_sent = false;
   seq_num = 0;
 
+  IrReceiver.begin(RECV_PIN);
+
   updateHp();
-  
+
   delay(100);
 }
 
@@ -225,10 +227,23 @@ void loop() {
     error = false;
   }
 
-  if (irrecv.decode()) {
+  if (IrReceiver.decode()) {
+    //IrReceiver.printIRResultShort(&Serial); // Prints a summary of the received data
+    //Serial.println(IrReceiver.decodedIRData.command, HEX);
+    //if (IrReceiver.decodedIRData.command == 0x61) { //if the button press equals the hex value 0xC284
+    if (IrReceiver.decodedIRData.command == 0x34) { //if the button press equals the hex value 0xC284
+      //do something useful here
+      activation_count += 1;
+    }
+    delay(300);
+    irrecv.resume();
+  }
+
+  /*
+    if (irrecv.decode(&results)) {
     activation_count += 1;
     delay(300);
     irrecv.resume();
     //hp -= 10;
-  }
+    }*/
 }

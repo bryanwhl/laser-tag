@@ -178,8 +178,12 @@ void loop() {
   buttonState = digitalRead(button_pin);
   if (buttonState == 0) {
     activation_count += 1;
-    irsend.sendNEC(0x111111, 32);
-    //irsend.sendNEC(0x1111,0x22,true);
+    
+    //irsend.sendNEC(0x111111, 32);
+    //irsend.sendNEC(0x111111,0x22,true);
+    //IrSender.sendNEC(0x0102, 0x34, true);
+    IrSender.sendNEC(0x0102, 0x61, true);
+    
     digitalWrite(13, HIGH);
     if(bulletCount <= 0) {
       tone(5,500,600);
